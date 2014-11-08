@@ -1,0 +1,29 @@
+/afs/andrew.cmu.edu/usr12/kgabbita/private/15-640/mapreduce-project/root/data-dir/JobTracker.java deleted
+/afs/andrew.cmu.edu/usr12/kgabbita/private/15-640/mapreduce-project/root/data-dir/MapReduce.java deleted
+/afs/andrew.cmu.edu/usr12/kgabbita/private/15-640/mapreduce-project/root/data-dir/TaskTrackerInfo.java deleted
+/afs/andrew.cmu.edu/usr12/kgabbita/private/15-640/mapreduce-project/root/data-dir/TaskTracker.java deleted
+/afs/andrew.cmu.edu/usr12/kgabbita/private/15-640/mapreduce-project/root/data-dir/kgabbita_udbhavp_file deleted
+/afs/andrew.cmu.edu/usr12/kgabbita/private/15-640/mapreduce-project/root/data-dir deleted
+/afs/andrew.cmu.edu/usr12/kgabbita/private/15-640/mapreduce-project/root deleted
+Existing Root for DFS deleted
+New Root directory for DFS created
+JobTracker has accepted a request.
+JobTracker streams made.
+data-dir created
+File copied from data-dir/JobTracker.java to ./root/data-dir/JobTracker.java
+File copied from data-dir/MapReduce.java to ./root/data-dir/MapReduce.java
+File copied from data-dir/TaskTrackerInfo.java to ./root/data-dir/TaskTrackerInfo.java
+File copied from data-dir/TaskTracker.java to ./root/data-dir/TaskTracker.java
+/afs/andrew.cmu.edu/usr12/kgabbita/private/15-640/mapreduce-project/JobTracker.java
+/afs/andrew.cmu.edu/usr12/kgabbita/private/15-640/mapreduce-project/MapReduce.java
+/afs/andrew.cmu.edu/usr12/kgabbita/private/15-640/mapreduce-project/TaskTrackerInfo.java
+/afs/andrew.cmu.edu/usr12/kgabbita/private/15-640/mapreduce-project/TaskTracker.java
+merging: JobTracker.java
+merging: MapReduce.java
+merging: TaskTrackerInfo.java
+merging: TaskTracker.java
+/afs/andrew.cmu.edu/usr12/kgabbita/private/15-640/mapreduce-project/JobTracker.java deleted
+/afs/andrew.cmu.edu/usr12/kgabbita/private/15-640/mapreduce-project/MapReduce.java deleted
+/afs/andrew.cmu.edu/usr12/kgabbita/private/15-640/mapreduce-project/TaskTrackerInfo.java deleted
+/afs/andrew.cmu.edu/usr12/kgabbita/private/15-640/mapreduce-project/TaskTracker.java deleted
+data-dir successfully copied.

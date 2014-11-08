@@ -198,7 +198,6 @@ public class JobTracker implements Runnable {
 			
 			jobId++;
 			String inputDir = null;
-			int bufferSize = 0;
 			
 			try {
 				inputDir = (String)ois.readObject();
@@ -226,88 +225,107 @@ public class JobTracker implements Runnable {
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
-			
-			String destDir = "root";
+			/*
+			 * END OF BAD CHECKING
+			 */
 			
 			if (valid) {
-				InputStream is = null;
-				try {
-					is = newConnection.getInputStream();
-					bufferSize = newConnection.getReceiveBufferSize();
-					System.out.println("Buffer size: " + bufferSize);
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-				
-				FileOutputStream fos = null;
-				BufferedOutputStream bos = null;
-				try {
-					fos = new FileOutputStream(destDir + File.separator + 
-							"mapred" + jobId + ".jar");
-					bos = new BufferedOutputStream(fos);
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-				
-				byte[] bytes = new byte[bufferSize];
-				
-				int count;
-				
-				try {
-					while ((count = is.read(bytes)) > 0) {
-						bos.write(bytes, 0, count);
-					}
-					
-					bos.flush();
-					bos.close();
-					is.close();
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
 				// Done reading the .jar
 				
-				// Extract the .jarJarFile jar = null;
-				System.out.println(jobId);
-				JarFile jar = null;
-				try {
-					jar = new JarFile(destDir + File.separator + "mapred" + jobId + ".jar");
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-				Enumeration enumEntries = jar.entries();
-				
-				int numFilesExtracted = 0;
-				try {
-					while (enumEntries.hasMoreElements()) {
-						JarEntry file = (JarEntry) enumEntries.nextElement();
-						File fExtractor = new File(destDir + File.separator + file.getName());
-						System.out.println(fExtractor.getName());
-						
-						if (fExtractor.getName().equals("META_INF") || 
-								fExtractor.getName().equals("MANIFEST.MF")) {
-							continue;
-						}
-						
-						if (file.isDirectory()) {
-							fExtractor.mkdir();
-							continue;
-						}
-
-						InputStream isExtractor = jar.getInputStream(file);
-						FileOutputStream fosExtractor = new FileOutputStream(fExtractor);
-						
-						System.out.println(isExtractor.available());
-						while (isExtractor.available() > 0) {
-							fosExtractor.write(isExtractor.read());
-						}
-						
-						fosExtractor.close();
-						isExtractor.close();
-					}
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
+				// Extract the .jar
+				extractJAR(jobId);
 			}
+		}
+	}
+	
+	void extractJAR(int jobId) {
+		int bufferSize = 0;
+		String destDir = "./root";
+		String jarFolder = destDir + File.separator + "mapred" + jobId;
+		
+		File destDirF = new File(jarFolder);
+		if (destDirF.mkdir()) {
+			System.out.println("Created mapred jar directory for job " + jobId);
+		} else {
+			System.out.println("Could not create mapred jar directory for job " + jobId);
+			System.exit(1);
+		}
+		
+		System.out.println(jobId + ":" + jarFolder + File.separator + "mapred" + jobId + ".jar");
+		
+		InputStream is = null;
+		try {
+			is = newConnection.getInputStream();
+			bufferSize = newConnection.getReceiveBufferSize();
+			System.out.println("Buffer size: " + bufferSize);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
+		FileOutputStream fos = null;
+		BufferedOutputStream bos = null;
+		try {
+			fos = new FileOutputStream(jarFolder + File.separator + 
+					"mapred" + jobId + ".jar");
+			bos = new BufferedOutputStream(fos);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
+		byte[] bytes = new byte[bufferSize];
+		
+		int count;
+		
+		try {
+			while ((count = is.read(bytes)) > 0) {
+				bos.write(bytes, 0, count);
+			}
+			
+			bos.flush();
+			bos.close();
+			is.close();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
+		JarFile jar = null;
+		try {
+			jar = new JarFile(jarFolder + File.separator + "mapred" + jobId + ".jar");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		Enumeration enumEntries = jar.entries();
+		
+		int numFilesExtracted = 0;
+		try {
+			while (enumEntries.hasMoreElements()) {
+				JarEntry file = (JarEntry) enumEntries.nextElement();
+				File fExtractor = new File(jarFolder + File.separator + file.getName());
+				System.out.println(fExtractor.getName());
+				
+				if (fExtractor.getName().equals("META_INF") || 
+						fExtractor.getName().equals("MANIFEST.MF")) {
+					continue;
+				}
+				
+				if (file.isDirectory()) {
+					fExtractor.mkdir();
+					continue;
+				}
+
+				InputStream isExtractor = jar.getInputStream(file);
+				FileOutputStream fosExtractor = new FileOutputStream(fExtractor);
+				
+				System.out.println(isExtractor.available());
+				while (isExtractor.available() > 0) {
+					fosExtractor.write(isExtractor.read());
+				}
+				
+				fosExtractor.close();
+				isExtractor.close();
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
 	}
 	

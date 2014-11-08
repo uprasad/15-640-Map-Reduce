@@ -76,7 +76,7 @@ public class FileSystem {
 	
 	/*Create directory for new TaskTracker*/
 	static void addNode(TaskTrackerInfo taskTrackerInfo) {
-		//add to nodeList
+		//add to nodeList and nodeInfo
 		int nodeNum = taskTrackerInfo.getNodeNum();
 				
 		nodeList.add(nodeNum);
@@ -109,6 +109,7 @@ public class FileSystem {
 		Integer nodeToRemove = new Integer(nodeNum);
 		nodeList.remove(nodeToRemove);
 		
+		//remove from nodeInfo
 		try {
 			nodeInfo.remove(nodeNum);
 		} catch (Exception e) {
@@ -132,12 +133,10 @@ public class FileSystem {
         for(String key: keys){
             FileEntry fileEntry = fileTable.get(key);
             
-            for(int i=0; i<fileEntry.getNumSplit(); i++) {
-            	for(int j=0; j<fileEntry.getRFactor(); j++) {
-            		if(fileEntry.getEntry(i,j) == nodeNum) {
-            			fileEntry.editList(i,j,-1); //replica missing due to failure
-            		}
-            	}
+            for(int i=0; i<fileEntry.getRFactor(); i++) {
+        		if(fileEntry.getEntry(i) == nodeNum) {
+        			fileEntry.editList(i,-1); //replica missing due to failure
+        		}
             }
         }
 	}
@@ -165,33 +164,33 @@ public class FileSystem {
 			addEntry(destDir);
 			
 			//remove temp copy
-			delete(destDir);
+			//delete(destDir);
 		}
 		
 		return 0;
 	}
 	
+	//delete fileName from cluster and fileTable
 	static int deleteFile(String fileName) {
 		if(!fileTable.containsKey(fileName)) {
 			return 1;
 		}
 		
-		int numSplit = fileTable.get(fileName).getNumSplit();
 		int rFactor = fileTable.get(fileName).getRFactor();
 		
-		for(int i=0; i<numSplit; i++) {
-			for(int j=0; j<rFactor; j++) {
-				int nodeNum = fileTable.get(fileName).getEntry(i, j);
+		//delete replicas
+		for(int i=0; i<rFactor; i++) {
+			int nodeNum = fileTable.get(fileName).getEntry(i);
+			
+			if(nodeNum>0) {
+				String deleteFileName = "./root/" + Integer.toString(nodeNum) + "/" + fileName;
+				File delFile = new File(deleteFileName);
 				
-				if(nodeNum>0) {
-					String deleteFileName = "./root/" + Integer.toString(nodeNum) + "/" + fileName + Integer.toString(i+1);
-					File delFile = new File(deleteFileName);
-					
-					delete(delFile);
-				}
+				delete(delFile);
 			}
 		}
 		
+		//delete from fileTables
 		fileTable.remove(fileName);
 		
 		return 0;
@@ -292,11 +291,20 @@ public class FileSystem {
 			}
 		}
 		
-		int numParts = 3;
 		int rFactor = 3;
 		
-		//split file into numParts
-		splitFiles(mergedFile, destDir.getName(), numParts);
+		/*
+		 * Change name of mergedFile to original directory name
+		 */
+		//splitFiles(mergedFile, destDir.getName(), numParts);
+		String newFileName = "./root/" + destDir.getName() + "/" + destDir.getName();
+		File newFile = new File(newFileName);
+		boolean mergeStatus = mergedFile.renameTo(newFile);
+		if(mergeStatus) {
+			System.out.println("Files in " + destDir.getName() + " merged successfully");
+		} else {
+			System.out.println("Files in " + destDir.getName() + " could not be merged successfully");
+		}
 		
 		//check if nodes < replication factor
 		if(nodeList.size() < rFactor) {
@@ -304,27 +312,40 @@ public class FileSystem {
 			System.out.println(destDir.getName() + " could not be added");
 		} else {
 			//add to fileTable
-			FileEntry fileEntry = new FileEntry(destDir.getName(), numParts, rFactor);
+			FileEntry fileEntry = new FileEntry(destDir.getName(), rFactor);
 			fileTable.put(destDir.getName(), fileEntry);
 			
-			for(int i=0; i<numParts; i++) {
+			//randomNumbers list to decide nodes for replicas
+			ArrayList<Integer> randomNumbers = new ArrayList<Integer>();
+			for(int i = 0; i<(nodeList.size()); i++) {
+				randomNumbers.add(i+1);
+			}
+			Collections.shuffle(randomNumbers);
+			
+			for(int i=0; i<rFactor; i++) {
 				//partionFileName and File object
-				String fileName = destDir.getAbsolutePath() + "/" + destDir.getName() + Integer.toString(i+1);
+				String fileName = destDir.getAbsolutePath() + "/" + destDir.getName();
 				File file = new File(fileName);
 				
-				//randomNumbers list
-				ArrayList<Integer> randomNumbers = new ArrayList<Integer>();
-				for(int j = 0; j<(nodeList.size()); j++) {
-					randomNumbers.add(j+1);
-				}
-				Collections.shuffle(randomNumbers);
+				//make replicaCopy with name appended
+				//String replicaCopyName = fileName + Integer.toString(i+1);
+				//File replicaCopy = new File(replicaCopyName);
+				//copyDir(file, replicaCopy);				
 				
 				//send replicas to nodes
-				for(int j=0; j<rFactor; j++) {
-					int node = randomNumbers.get(j);
-					System.out.println(i+1 + ":" + node);
-					sendToNode(node, file);
-					fileTable.get(destDir.getName()).editList(i,j,node);
+				int node = randomNumbers.get(i);
+				System.out.println("Copy " + (i+1) + " => " + "Node " + node);
+				sendToNode(node, file);
+				fileTable.get(destDir.getName()).editList(i, node);
+			}
+			
+			//remove replicaCopies
+			String replicaFileNames[] = destDir.list();
+			for(String replicaFileName: replicaFileNames) {
+				replicaFileName = destDir.getAbsolutePath() + "/" + replicaFileName;
+				File file = new File(replicaFileName);
+				if(!file.getName().equals(destDir.getName())) {
+					delete(file);
 				}
 			}
 		}
@@ -364,6 +385,38 @@ public class FileSystem {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
+	}
+	
+	//returns 1 if present in FileSystem, else 0
+	static int filePresent(String fileName) {
+		int result = 0;
+		
+		File file = new File(fileName);
+		String formattedFileName = file.getName();
+		
+		if(fileTable.containsKey(formattedFileName)) {
+			result = 1;
+		}
+		
+		return result;
+	}
+	
+	//split file into partitions at master
+	static void splitToPartitions(String fileName, int numParts) {
+		if(filePresent(fileName) == 0) {
+			System.out.println(fileName + " not in DFS!");
+			return;
+		}
+		
+		File dummyFile = new File(fileName);
+		String formattedFileName = dummyFile.getName();
+		
+		formattedFileName = "./root/" + formattedFileName + "/" + formattedFileName;
+		File file = new File(formattedFileName);
+		
+		splitFiles(file, formattedFileName, numParts);
+		
+		System.out.println("Files partitioned for " + formattedFileName);
 	}
 	
 	static void splitFiles(File file, String prefix, int numParts) {
@@ -450,6 +503,30 @@ public class FileSystem {
 		return n;
 	}
 	
+	//send partNum (partition number) of fileName to nodNum
+	static void sendPartitionToNode(String fileName, int partNum, int nodeNum) {
+		if(filePresent(fileName) == 0) {
+			System.out.println(fileName + " does not exist in the DFS!");
+			return;
+		}
+		
+		//check formatting of fileName
+		File dummyFile = new File(fileName);
+		String formattedFileName = dummyFile.getName();
+		
+		String partitionFileName = "./root/" + formattedFileName + "/" + formattedFileName 
+				+ Integer.toString(partNum);
+		File partitionFile = new File(partitionFileName);
+		
+		if(!partitionFile.exists()) {
+			System.out.println("Partition " + partNum + " does not exist for " + fileName);
+			return;
+		}
+		
+		sendToNode(nodeNum, partitionFile);
+	}
+	
+	//send a file to nodeNum using network
 	static void sendToNode(int nodeNum, File file) {
 		
 		Socket connection = null;

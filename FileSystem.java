@@ -403,7 +403,7 @@ public class FileSystem {
 	}
 	
 	//split file into partitions at master
-	static void splitToPartitions(String fileName, int numParts) {
+	static void splitToPartitions(String fileName, int numParts, int jobID) {
 		if(filePresent(fileName) == 0) {
 			System.out.println(fileName + " not in DFS!");
 			return;
@@ -415,7 +415,9 @@ public class FileSystem {
 		formattedFileName = "./root/" + formattedFileName + "/" + formattedFileName;
 		File file = new File(formattedFileName);
 		
-		splitFiles(file, file.getName(), numParts);
+		String partitionName = file.getName() + "_" + Integer.toString(jobID) + "_";
+		
+		splitFiles(file, partitionName, numParts);
 		
 		System.out.println("Files partitioned for " + formattedFileName);
 	}
@@ -505,7 +507,7 @@ public class FileSystem {
 	}
 	
 	//send partNum (partition number) of fileName to nodNum
-	static void sendPartitionToNode(String fileName, int partNum, int nodeNum) {
+	static void sendPartitionToNode(String fileName, int partNum, int nodeNum, int jobID) {
 		if(filePresent(fileName) == 0) {
 			System.out.println(fileName + " does not exist in the DFS!");
 			return;
@@ -516,7 +518,7 @@ public class FileSystem {
 		String formattedFileName = dummyFile.getName();
 		
 		String partitionFileName = "./root/" + formattedFileName + "/" + formattedFileName 
-				+ Integer.toString(partNum);
+				+ "_" + Integer.toString(jobID) + "_" + Integer.toString(partNum);
 		File partitionFile = new File(partitionFileName);
 		
 		if(!partitionFile.exists()) {
@@ -549,6 +551,52 @@ public class FileSystem {
 			
 			oos.writeObject("CopyFile");
 			String destFileName = "./root/" + Integer.toString(nodeNum) + "/" + file.getName(); 
+			oos.writeObject(destFileName);
+			
+			int count;
+			
+			while ((count = in.read(buffer)) > 0) {
+			     out.write(buffer, 0, count);
+			     out.flush();
+			}
+			out.close();
+			
+			//System.out.println((String)ois.readObject());
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+	
+	//send a file to nodeNum's dirName using network
+	static void sendToNodeFolder(int nodeNum, File file, String dirName) {
+		
+		//create dirPath if doesn't exist in nodeNum
+		String dirPath = "./root/" + Integer.toString(nodeNum) + "/" + dirName;
+		File dir = new File(dirPath);
+		
+		if(!dir.exists()) {
+			dir.mkdir();
+		}
+		
+		Socket connection = null;
+		try {
+			connection = new Socket(InetAddress.getByName(nodeInfo.get(nodeNum).getIPAddress()), 
+					nodeInfo.get(nodeNum).getServPort());
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
+		try {
+			ObjectOutputStream oos = new ObjectOutputStream(connection.getOutputStream());
+			oos.flush();
+			ObjectInputStream ois = new ObjectInputStream(connection.getInputStream());
+			
+			byte[] buffer = new byte[1024];
+			OutputStream out = connection.getOutputStream();
+			BufferedInputStream in = new BufferedInputStream(new FileInputStream(file));
+			
+			oos.writeObject("CopyFile");
+			String destFileName = dirPath + "/" + file.getName(); 
 			oos.writeObject(destFileName);
 			
 			int count;

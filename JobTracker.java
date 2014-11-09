@@ -228,13 +228,32 @@ public class JobTracker implements Runnable {
 				
 				// scheduler for mapper stage
 				int[] mapperToNode = mapperScheduler(inputDir, numMappers);
-				fileSystem.splitToPartitions(inputDir, numMappers);
+				fileSystem.splitToPartitions(inputDir, numMappers, jobId);
+				
 				for (int i=0; i<numMappers; i++) {
-					fileSystem.sendPartitionToNode(inputDir, i+1, mapperToNode[i]);
+					fileSystem.sendPartitionToNode(inputDir, i+1, mapperToNode[i], jobId);
 					File mapFile = new File(jarFolder + File.separator + "Map.class");
-					fileSystem.sendToNode(mapperToNode[i], mapFile);
+					String dirName = "job" + Integer.toString(jobId);
+					fileSystem.sendToNodeFolder(mapperToNode[i], mapFile, dirName);
 					startMapTask(jobId, i+1, mapperToNode[i], inputDir);
 				}
+			}
+		} else if (command.equals("MapResult")) {
+			Integer jobId = null;
+			Integer partition = null;
+			Integer exitValue = null;
+			try {
+				jobId = (Integer)ois.readObject();
+				partition = (Integer)ois.readObject();
+				exitValue = (Integer)ois.readObject();
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			
+			if (exitValue != 0) {
+				System.out.println("Map task " + partition + " of jobId " + jobId + " failed.");
+			} else {
+				System.out.println("Map task " + partition + " of jobId " + jobId + " DONE.");
 			}
 		}
 	}

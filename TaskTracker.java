@@ -170,10 +170,14 @@ public class TaskTracker implements Runnable {
 			}
 			
 			inputDir = "./root/" + Integer.toString(nodeNumber) + 
-					"/" + inputDir + Integer.toString(partition); // TODO add jobId dir
+					"/" + inputDir + "_" + Integer.toString(jobId) + 
+					"_" + Integer.toString(partition);
 			
-			String mapCommand = "java Map " + inputDir + " " + inputDir + "out";
-			RunProcess mapProcess = new RunProcess(mapCommand);
+			String mapDir = "root/" + Integer.toString(nodeNumber) + 
+					"/job" + Integer.toString(jobId);
+			String mapCommand = "java -cp " + mapDir + "/ " + 
+					"Map " + inputDir + " " + inputDir + "out";
+			RunProcess mapProcess = new RunProcess(mapCommand, jobId, partition);
 			Thread t = new Thread(mapProcess);
 			t.start();
 			
@@ -188,9 +192,13 @@ public class TaskTracker implements Runnable {
 
 class RunProcess implements Runnable {
 	String command = null;
+	int jobId = 0;
+	int partition = 0;
 	
-	RunProcess(String command) {
+	RunProcess(String command, int jobId, int partition) {
 		this.command = command;
+		this.jobId = jobId;
+		this.partition = partition;
 	}
 	
 	private static void printLines(String name, InputStream ins) throws Exception {
@@ -208,8 +216,31 @@ class RunProcess implements Runnable {
 			printLines(command + " stdout:", pro.getErrorStream());
 			pro.waitFor();
 			System.out.println(command + " exitValue() " + pro.exitValue());
+			sendMapResult(pro.exitValue());
 		} catch (Exception e) {
 			e.printStackTrace();
+		}
+	}
+	
+	private void sendMapResult(int exitValue) {
+		Socket connection = null;
+		ObjectOutputStream oos = null;
+		ObjectInputStream ois = null;
+		int jobTrackerPort = TaskTracker.jobTrackerPort;
+		String jobTrackerIP = TaskTracker.jobTrackerIP;
+		try {
+			connection = new Socket(jobTrackerIP, jobTrackerPort);
+			oos = new ObjectOutputStream(connection.getOutputStream());
+			oos.flush();
+			ois = new ObjectInputStream(connection.getInputStream());
+			
+			oos.writeObject("MapResult");
+			oos.writeObject(jobId);
+			oos.writeObject(partition);
+			oos.writeObject(exitValue);
+		} catch (Exception e) {
+			e.printStackTrace();
+			System.exit(1);
 		}
 	}
 	

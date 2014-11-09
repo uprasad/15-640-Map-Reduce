@@ -25,6 +25,9 @@ public class JobTracker implements Runnable {
 	//FileSystem for DFS
 	static FileSystem fileSystem = new FileSystem();
 	
+	// Table of jobs indexed by jobId
+	Hashtable<Integer, Job> jobTable = new Hashtable<Integer, Job>();
+	
 	/*
  	 * Constructor for thread
  	 */ 
@@ -120,6 +123,7 @@ public class JobTracker implements Runnable {
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
+			
 			System.out.println("JobTracker has added a new TaskTracker " + 
 					newConnection.getInetAddress().toString());
 
@@ -218,10 +222,13 @@ public class JobTracker implements Runnable {
 				e.printStackTrace();
 			}
 			
-			if (valid) {
+			if (valid) { // If the job is valid
 				int numMappers = 3;
 				// Extract the .jar
 				extractJAR(jobId);
+				
+				// creat new job
+				Job newJob = new Job(numMappers, jobId);
 				
 				String destDir = "./root";
 				String jarFolder = destDir + File.separator + "mapred" + jobId;
@@ -230,10 +237,17 @@ public class JobTracker implements Runnable {
 				int[] mapperToNode = mapperScheduler(inputDir, numMappers);
 				fileSystem.splitToPartitions(inputDir, numMappers, jobId);
 				
-				for (int i=0; i<numMappers; i++) {
+				int inputDirLength = fileSystem.getFileLength(inputDir);
+				
+				for (int i=0; i<numMappers; i++) { // loop over mappers, start them
+					newJob.mapList.add(i, new TaskDetails(i+1, mapperToNode[i], 
+							(double)inputDirLength/numMappers));
+					
 					fileSystem.sendPartitionToNode(inputDir, i+1, mapperToNode[i], jobId);
+					
 					File mapFile = new File(jarFolder + File.separator + "Map.class");
 					String dirName = "job" + Integer.toString(jobId);
+					
 					fileSystem.sendToNodeFolder(mapperToNode[i], mapFile, dirName);
 					startMapTask(jobId, i+1, mapperToNode[i], inputDir);
 				}
@@ -329,7 +343,7 @@ public class JobTracker implements Runnable {
 		
 		//System.out.println(ttiQueue.size());
 		
-		int inputDirLength = fileSystem.getFileLength(inputDir); // TODO: get inputDir length, this is placeholder
+		int inputDirLength = fileSystem.getFileLength(inputDir);
 		
 		int[] mapperToNode = new int[numMappers];
 		for (int i=0; i<numMappers; i++) {

@@ -205,18 +205,10 @@ public class JobTracker implements Runnable {
 				e.printStackTrace();
 			}
 			
-			File f = new File(inputDir);
-			/*
-			 * BAD DIRECTORY CHECKING!
-			 */
 			boolean valid = false;
 			try {
-				if (!f.exists()) {
+				if (fileSystem.filePresent(inputDir) == 0) {
 					oos.writeObject("NotExist");
-				}
-			
-				if (!f.isDirectory()) {
-					oos.writeObject("NotDir");
 				}
 				
 				valid = true;
@@ -225,17 +217,52 @@ public class JobTracker implements Runnable {
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
-			/*
-			 * END OF BAD CHECKING
-			 */
 			
 			if (valid) {
-				// Done reading the .jar
-				
+				int numMappers = 3;
 				// Extract the .jar
 				extractJAR(jobId);
+				
+				String destDir = "./root";
+				String jarFolder = destDir + File.separator + "mapred" + jobId;
+				
+				// scheduler for mapper stage
+				int[] mapperToNode = mapperScheduler(inputDir, numMappers);
+				fileSystem.splitToPartitions(inputDir, numMappers);
+				for (int i=0; i<numMappers; i++) {
+					fileSystem.sendPartitionToNode(inputDir, i+1, mapperToNode[i]);
+					File mapFile = new File(jarFolder + File.separator + "Map.class");
+					fileSystem.sendToNode(mapperToNode[i], mapFile);
+				}
 			}
 		}
+	}
+	
+	int[] mapperScheduler(String inputDir, int numMappers) {
+		// Priority queue for scheduler
+		Comparator<TaskTrackerInfo> ttiComparator = new TaskTrackerInfoComparator();
+		PriorityQueue<TaskTrackerInfo> ttiQueue = new PriorityQueue<TaskTrackerInfo>(10, ttiComparator);
+		
+		// Put all the task trackers into the priority queue
+		Iterator<TaskTrackerInfo> ttiEnum = taskTrackerTable.values().iterator();
+		while (ttiEnum.hasNext()) {
+			TaskTrackerInfo tti = ttiEnum.next();
+			ttiQueue.add(tti);
+		}
+		
+		//System.out.println(ttiQueue.size());
+		
+		int inputDirLength = fileSystem.getFileLength(inputDir); // TODO: get inputDir length, this is placeholder
+		
+		int[] mapperToNode = new int[numMappers];
+		for (int i=0; i<numMappers; i++) {
+			TaskTrackerInfo ttiMin = ttiQueue.poll();
+			ttiMin.addLoad(inputDirLength/numMappers);
+			mapperToNode[i] = ttiMin.getNodeNum();
+			ttiQueue.add(ttiMin);
+		}
+		
+		return mapperToNode;
 	}
 	
 	void extractJAR(int jobId) {

@@ -291,7 +291,8 @@ public class FileSystem {
 			}
 		}
 		
-		int rFactor = 3;
+		//int rFactor = 3; // number of replicas created
+		int rFactor = 1; // for testing purposes
 		
 		/*
 		 * Change name of mergedFile to original directory name
@@ -414,7 +415,7 @@ public class FileSystem {
 		formattedFileName = "./root/" + formattedFileName + "/" + formattedFileName;
 		File file = new File(formattedFileName);
 		
-		splitFiles(file, formattedFileName, numParts);
+		splitFiles(file, file.getName(), numParts);
 		
 		System.out.println("Files partitioned for " + formattedFileName);
 	}
@@ -562,5 +563,23 @@ public class FileSystem {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
+	}
+	
+	//return fileLength of fileName if in DFS, else return -1
+	static int getFileLength(String fileName) {
+		if(filePresent(fileName) == 0) {
+			return -1;
+		}
+		
+		fileName = getFormattedFileName(fileName);
+		fileName = "./root/" + fileName + "/" + fileName;
+		
+		File file = new File(fileName);
+		return (int)file.length();
+	}
+	
+	static String getFormattedFileName(String fileName) {
+		File dummyFile = new File(fileName);
+		return dummyFile.getName();
 	}
 }

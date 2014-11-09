@@ -88,7 +88,7 @@ public class TaskTracker implements Runnable {
 			/*Accept new connections*/
 			try {
 				servConnection = taskTrackerSocket.accept();
-				System.out.println("Reuqest accepted");
+				System.out.println("Request accepted");
 			} catch (Exception e) {
 				e.printStackTrace();
 			}

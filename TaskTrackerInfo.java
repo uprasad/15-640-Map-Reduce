@@ -8,12 +8,26 @@ public class TaskTrackerInfo implements Serializable {
 	int pollPort;
 	int servPort;
 	int nodeNum;
+	double load;
 	
 	TaskTrackerInfo(String ip, int pollPort, int servPort, int nodeNum) {
 		this.ip = ip;
 		this.pollPort = pollPort;
 		this.servPort = servPort;
 		this.nodeNum = nodeNum;
+		this.load = 0;
+	}
+	
+	void addLoad(double load) {
+		this.load += load;
+	}
+	
+	void removeLoad(double load) {
+		this.load -= load;
+	}
+	
+	double getLoad() {
+		return this.load;
 	}
 	
 	String getIPAddress() {

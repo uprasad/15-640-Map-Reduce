@@ -227,20 +227,21 @@ public class JobTracker implements Runnable {
 				// Extract the .jar
 				extractJAR(jobId);
 				
-				// creat new job
+				// creat new job and add to jobTable
 				Job newJob = new Job(numMappers, jobId);
+				jobTable.put(jobId, newJob);
 				
 				String destDir = "./root";
 				String jarFolder = destDir + File.separator + "mapred" + jobId;
 				
 				// scheduler for mapper stage
-				int[] mapperToNode = mapperScheduler(inputDir, numMappers);
+				int[] mapperToNode = mapperScheduler(inputDir, numMappers, jobId);
 				fileSystem.splitToPartitions(inputDir, numMappers, jobId);
 				
 				int inputDirLength = fileSystem.getFileLength(inputDir);
 				
 				for (int i=0; i<numMappers; i++) { // loop over mappers, start them
-					newJob.mapList.add(i, new TaskDetails(i+1, mapperToNode[i], 
+					jobTable.get(jobId).mapList.add(i, new TaskDetails(i+1, mapperToNode[i], 
 							(double)inputDirLength/numMappers));
 					
 					fileSystem.sendPartitionToNode(inputDir, i+1, mapperToNode[i], jobId);
@@ -266,8 +267,32 @@ public class JobTracker implements Runnable {
 			
 			if (exitValue != 0) {
 				System.out.println("Map task " + partition + " of jobId " + jobId + " failed.");
+				
+				//update jobList
+				jobTable.get(jobId).mapList.get(partition-1).setStatus(3);
+				int nodeNum = jobTable.get(jobId).mapList.get(partition-1).getNodeNum();
+				
+				//update TaskTracker load
+				TaskTrackerInfo ti = getTaskTrackerInfoFromNodeNum(nodeNum);
+				double taskLoad = jobTable.get(jobId).mapList.get(partition-1).getLoad();
+				double oldLoad = ti.getLoad();
+				ti.removeLoad(taskLoad);
+				double newLoad = getTaskTrackerInfoFromNodeNum(nodeNum).getLoad();
+				System.out.println("Node " + nodeNum + " => Load: " + oldLoad + " to " + newLoad);
 			} else {
 				System.out.println("Map task " + partition + " of jobId " + jobId + " DONE.");
+				
+				//update jobList
+				jobTable.get(jobId).mapList.get(partition-1).setStatus(2);
+				int nodeNum = jobTable.get(jobId).mapList.get(partition-1).getNodeNum();
+				
+				//update TaskTracker load
+				TaskTrackerInfo ti = getTaskTrackerInfoFromNodeNum(nodeNum);
+				double taskLoad = jobTable.get(jobId).mapList.get(partition-1).getLoad();
+				double oldLoad = ti.getLoad();
+				ti.removeLoad(taskLoad);
+				double newLoad = getTaskTrackerInfoFromNodeNum(nodeNum).getLoad();
+				System.out.println("Node " + nodeNum + " => Load: " + oldLoad + " to " + newLoad);
 			}
 		}
 	}
@@ -324,12 +349,14 @@ public class JobTracker implements Runnable {
 		
 		if (command.equals("MapDone")) {
 			System.out.println("Map has been finished");
+			jobTable.get(jobId).mapList.get(partition-1).setStatus(1);
 		} else {
 			System.out.println("ERROR in running Map phase");
+			jobTable.get(jobId).mapList.get(partition-1).setStatus(3);
 		}
 	}
 	
-	int[] mapperScheduler(String inputDir, int numMappers) {
+	int[] mapperScheduler(String inputDir, int numMappers, int jobID) {
 		// Priority queue for scheduler
 		Comparator<TaskTrackerInfo> ttiComparator = new TaskTrackerInfoComparator();
 		PriorityQueue<TaskTrackerInfo> ttiQueue = new PriorityQueue<TaskTrackerInfo>(10, ttiComparator);
@@ -348,7 +375,8 @@ public class JobTracker implements Runnable {
 		int[] mapperToNode = new int[numMappers];
 		for (int i=0; i<numMappers; i++) {
 			TaskTrackerInfo ttiMin = ttiQueue.poll();
-			ttiMin.addLoad(inputDirLength/numMappers);
+			ttiMin.addLoad((double)inputDirLength/numMappers);
+			//ttiMin.addLoad(jobTable.get(jobId).mapList.get(i).getLoad());
 			mapperToNode[i] = ttiMin.getNodeNum();
 			ttiQueue.add(ttiMin);
 		}

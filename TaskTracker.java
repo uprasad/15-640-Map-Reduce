@@ -157,7 +157,64 @@ public class TaskTracker implements Runnable {
 			} catch(Exception e) {
 				e.printStackTrace();
 			}
+		} else if (command.equals("RunMap")) {
+			Integer partition = null;
+			Integer jobId = null;
+			String inputDir = null;
+			try {
+				partition = (Integer)ois.readObject();
+				jobId = (Integer)ois.readObject();
+				inputDir = (String)ois.readObject();
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			
+			inputDir = "./root/" + Integer.toString(nodeNumber) + 
+					"/" + inputDir + Integer.toString(partition); // TODO add jobId dir
+			
+			String mapCommand = "java Map " + inputDir + " " + inputDir + "out";
+			RunProcess mapProcess = new RunProcess(mapCommand);
+			Thread t = new Thread(mapProcess);
+			t.start();
+			
+			try {
+				oos.writeObject("MapDone"); // TODO find out when to say MapDone
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
 		}
+	}
+}
+
+class RunProcess implements Runnable {
+	String command = null;
+	
+	RunProcess(String command) {
+		this.command = command;
+	}
+	
+	private static void printLines(String name, InputStream ins) throws Exception {
+	    String line = null;
+	    BufferedReader in = new BufferedReader(
+	        new InputStreamReader(ins));
+	    while ((line = in.readLine()) != null) {
+	        System.out.println(name + " " + line);
+	    }
+	}
+	
+	void runProcess(String command) { 
+		try {
+			Process pro = Runtime.getRuntime().exec(command);
+			printLines(command + " stdout:", pro.getErrorStream());
+			pro.waitFor();
+			System.out.println(command + " exitValue() " + pro.exitValue());
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+	
+	public void run() {
+		runProcess(command);
 	}
 }
 

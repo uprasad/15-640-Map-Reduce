@@ -233,8 +233,66 @@ public class JobTracker implements Runnable {
 					fileSystem.sendPartitionToNode(inputDir, i+1, mapperToNode[i]);
 					File mapFile = new File(jarFolder + File.separator + "Map.class");
 					fileSystem.sendToNode(mapperToNode[i], mapFile);
+					startMapTask(jobId, i+1, mapperToNode[i], inputDir);
 				}
 			}
+		}
+	}
+	
+	TaskTrackerInfo getTaskTrackerInfoFromNodeNum(int nodeNum) {
+		TaskTrackerInfo ttiFound = null;
+		
+		Iterator<TaskTrackerInfo> ttiEnum = taskTrackerTable.values().iterator();
+		while (ttiEnum.hasNext()) {
+			TaskTrackerInfo tti = ttiEnum.next();
+			if (tti.getNodeNum() == nodeNum) {
+				ttiFound = tti;
+				break;
+			}
+		}
+		
+		return ttiFound;
+	}
+	
+	void startMapTask(int jobId, int partition, int nodeNum, String inputDir) {
+		TaskTrackerInfo ttiCur = getTaskTrackerInfoFromNodeNum(nodeNum);
+		if (ttiCur == null) {
+			System.out.println("Could not find task tracker!");
+			return;
+		}
+		
+		String taskIP = ttiCur.getIPAddress();
+		int taskPort = ttiCur.getServPort(); 
+		
+		Socket connection = null;
+		ObjectOutputStream oos = null;
+		ObjectInputStream ois = null;
+		try {
+			connection = new Socket(taskIP, taskPort);
+			
+			oos = new ObjectOutputStream(connection.getOutputStream());
+			oos.flush();
+			ois = new ObjectInputStream(connection.getInputStream());
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
+		String command = null;
+		try {
+			oos.writeObject("RunMap");
+			oos.writeObject(partition);
+			oos.writeObject(jobId);
+			oos.writeObject(inputDir);
+			
+			command = (String)ois.readObject();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
+		if (command.equals("MapDone")) {
+			System.out.println("Map has been finished");
+		} else {
+			System.out.println("ERROR in running Map phase");
 		}
 	}
 	

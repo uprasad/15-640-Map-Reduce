@@ -30,7 +30,7 @@ public class Map {
 				String[] splits = line.split(" ");
 				for (int i=0; i<splits.length; i++) {
 					System.out.println(splits[i]);
-					bw.write(splits[i]);
+					bw.write(splits[i] + "\t" + Integer.toString(1));
 					bw.newLine();
 				}
 			}

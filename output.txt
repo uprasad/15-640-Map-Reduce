@@ -1,10 +1,10 @@
-Knock
-knock.
-Who's
-there?
-To
-To
-who?
-To
-whom,
-surely?
+Knock	1
+knock.	1
+Who's	1
+there?	1
+To	1
+To	1
+who?	1
+To	1
+whom,	1
+surely?	1

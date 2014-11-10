@@ -195,6 +195,47 @@ class RunProcess implements Runnable {
 	int jobId = 0;
 	int partition = 0;
 	
+	void combiner(File file, int numReducers) {
+		File[] outFiles = new File[numReducers];
+		FileOutputStream[] outFos = new FileOutputStream[numReducers];
+		BufferedWriter[] outBw = new BufferedWriter[numReducers];
+		
+		try {
+			for (int i=0; i<numReducers; i++) {
+				outFiles[i] = new File(file.getAbsolutePath() + Integer.toString(i+1));
+				outFos[i] = new FileOutputStream(outFiles[i]);
+				outBw[i] = new BufferedWriter(new OutputStreamWriter(outFos[i]));
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
+		BufferedReader br = null;
+		try {
+			br = new BufferedReader(new FileReader(file));
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
+		try {
+			String line;
+			String key;
+			while ((line = br.readLine()) != null) {
+				key = line.split("\t")[0];
+				int red = Math.abs(key.hashCode())%numReducers;
+				outBw[red].write(line);
+				outBw[red].newLine();
+			}
+			
+			for (int i=0; i<numReducers; i++) {
+				outBw[i].close();
+			}
+			br.close();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+	
 	RunProcess(String command, int jobId, int partition) {
 		this.command = command;
 		this.jobId = jobId;
@@ -216,6 +257,14 @@ class RunProcess implements Runnable {
 			printLines(command + " stdout:", pro.getErrorStream());
 			pro.waitFor();
 			System.out.println(command + " exitValue() " + pro.exitValue());
+			
+			if (pro.exitValue() == 0) {
+				int numReducers = 3; // TODO GET REDUCERS FROM CONFIG FILE
+				String fileName = command.split(" ")[command.split(" ").length - 1];
+				File file = new File(fileName);
+				combiner(file, numReducers);
+			}
+			
 			sendMapResult(pro.exitValue());
 		} catch (Exception e) {
 			e.printStackTrace();

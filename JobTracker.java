@@ -224,11 +224,12 @@ public class JobTracker implements Runnable {
 			
 			if (valid) { // If the job is valid
 				int numMappers = 3;
+				int numReducers = 3;
 				// Extract the .jar
 				extractJAR(jobId);
 				
 				// creat new job and add to jobTable
-				Job newJob = new Job(numMappers, jobId);
+				Job newJob = new Job(numMappers, numReducers, jobId, inputDir);
 				jobTable.put(jobId, newJob);
 				
 				String destDir = "./root";
@@ -293,6 +294,45 @@ public class JobTracker implements Runnable {
 				ti.removeLoad(taskLoad);
 				double newLoad = getTaskTrackerInfoFromNodeNum(nodeNum).getLoad();
 				System.out.println("Node " + nodeNum + " => Load: " + oldLoad + " to " + newLoad);
+				
+				//check if all Mappers are done
+				int numMappers = jobTable.get(jobId).mapList.size();
+				int mapFinish = 0;
+				for(int i=0;i<numMappers;i++) {
+					if(jobTable.get(jobId).mapList.get(i).getStatus() != 2) {
+						mapFinish++;
+						break;
+					}
+				}
+				
+				//start reduce phase if all mappers are complete
+				if(mapFinish == 0) {
+					//start reduce phase for jobId
+					int numReducers = 3;
+					System.out.println("Map Phase has finished for JobID " + jobId);
+					
+					//get node assignments for reduce tasks
+					String inputDir = jobTable.get(jobId).getInputDir();
+					int[] reducerToNode = mapperScheduler(inputDir, numReducers, jobId);
+					
+					int inputDirLength = fileSystem.getFileLength(inputDir);
+					
+					for (int i=0; i<numReducers; i++) { // loop over reducers, start them
+						jobTable.get(jobId).reduceList.add(i, new TaskDetails(i+1, reducerToNode[i], 
+								(double)inputDirLength/numReducers));
+						
+						//TODO: ask each mapper to send output to reducer i
+						/*
+						fileSystem.sendMapOutputToNode(inputDir, i+1, reducerToNode[i], jobId);
+						
+						File mapFile = new File(jarFolder + File.separator + "Map.class");
+						String dirName = "job" + Integer.toString(jobId);
+						
+						fileSystem.sendToNodeFolder(mapperToNode[i], mapFile, dirName);
+						startMapTask(jobId, i+1, mapperToNode[i], inputDir);
+						*/
+					}
+				}
 			}
 		}
 	}
@@ -356,6 +396,9 @@ public class JobTracker implements Runnable {
 		}
 	}
 	
+	/*
+	 * TODO: change name to taskScheduler
+	 */
 	int[] mapperScheduler(String inputDir, int numMappers, int jobID) {
 		// Priority queue for scheduler
 		Comparator<TaskTrackerInfo> ttiComparator = new TaskTrackerInfoComparator();

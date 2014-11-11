@@ -234,6 +234,8 @@ class RunProcess implements Runnable {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
+		
+		System.out.println("Combiner done");
 	}
 	
 	RunProcess(String command, int jobId, int partition) {

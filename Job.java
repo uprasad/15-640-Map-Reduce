@@ -5,13 +5,23 @@ import java.io.*;
 
 public class Job {
 	static List<TaskDetails> mapList = null;
-	int numMappers;
-	int jobId;
+	static List<TaskDetails> reduceList = null;
 	
-	Job(int numMappers, int jobId) {
+	int numMappers;
+	int numReducers;
+	
+	int jobId;
+	String inputDir; //inputDir name as in the FileSystem
+	
+	Job(int numMappers, int numReducers, int jobId, String inputDir) {
 		mapList = new ArrayList<TaskDetails>(numMappers);
+		reduceList = new ArrayList<TaskDetails>(numReducers);
+		
 		this.numMappers = numMappers;
+		this.numReducers = numReducers;
+		
 		this.jobId = jobId;
+		this.inputDir = inputDir;
 	}
 	
 	int getJobId() {
@@ -20,5 +30,13 @@ public class Job {
 	
 	int getNumMappers() {
 		return this.numMappers;
+	}
+	
+	int getNumReducers() {
+		return this.numReducers;
+	}
+	
+	String getInputDir() {
+		return inputDir;
 	}
 }

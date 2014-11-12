@@ -357,7 +357,8 @@ public class FileSystem {
 		String absolutePath = file.getAbsolutePath();
 		ProcessBuilder pb = new ProcessBuilder("sort", absolutePath, "-o", absolutePath);
 		try {
-			pb.start();
+			Process p = pb.start();
+			p.waitFor();
 		} catch (Exception e) {
 			System.out.println("Error is sorting the Map output.");
 		}

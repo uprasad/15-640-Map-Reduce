@@ -177,12 +177,44 @@ public class TaskTracker implements Runnable {
 					"/job" + Integer.toString(jobId);
 			String mapCommand = "java -cp " + mapDir + "/ " + 
 					"Map " + inputDir + " " + inputDir + "out";
-			RunProcess mapProcess = new RunProcess(mapCommand, jobId, partition);
+			RunProcess mapProcess = new RunProcess(mapCommand, jobId, partition, true);
 			Thread t = new Thread(mapProcess);
 			t.start();
 			
 			try {
 				oos.writeObject("MapDone"); // TODO find out when to say MapDone
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		} else if (command.equals("RunReduce")) {
+			Integer jobId = null;
+			Integer numMappers = null;
+			Integer reduceNum = null;
+			String inputDir = null;
+			try {
+				jobId = (Integer)ois.readObject();
+				numMappers = (Integer)ois.readObject();
+				reduceNum = (Integer)ois.readObject();
+				inputDir = (String)ois.readObject();
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			
+			inputDir = "./root/" + Integer.toString(nodeNumber) + 
+					"/" + inputDir + "_" + Integer.toString(jobId) + 
+					"red" + Integer.toString(reduceNum);
+			
+			String reduceDir = "root/" + Integer.toString(nodeNumber) + 
+					"/job" + Integer.toString(jobId);
+			System.out.println("************" + inputDir);
+			String reduceCommand = "java -cp " + reduceDir + "/ " + 
+					"Reduce " + inputDir + " " + inputDir + "out";
+			RunProcess reduceProcess = new RunProcess(reduceCommand, jobId, reduceNum, false);
+			Thread t = new Thread(reduceProcess);
+			t.start();
+			
+			try {
+				oos.writeObject("ReduceDone"); // TODO find out when to say MapDone
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
@@ -194,6 +226,7 @@ class RunProcess implements Runnable {
 	String command = null;
 	int jobId = 0;
 	int partition = 0;
+	boolean isMap;
 	
 	void combiner(File file, int numReducers) {
 		File[] outFiles = new File[numReducers];
@@ -238,10 +271,11 @@ class RunProcess implements Runnable {
 		System.out.println("Combiner done");
 	}
 	
-	RunProcess(String command, int jobId, int partition) {
+	RunProcess(String command, int jobId, int partition, boolean isMap) {
 		this.command = command;
 		this.jobId = jobId;
 		this.partition = partition;
+		this.isMap = isMap;
 	}
 	
 	private static void printLines(String name, InputStream ins) throws Exception {
@@ -255,19 +289,23 @@ class RunProcess implements Runnable {
 	
 	void runProcess(String command) { 
 		try {
+			System.out.println(command);
 			Process pro = Runtime.getRuntime().exec(command);
 			printLines(command + " stdout:", pro.getErrorStream());
 			pro.waitFor();
 			System.out.println(command + " exitValue() " + pro.exitValue());
 			
-			if (pro.exitValue() == 0) {
-				int numReducers = 3; // TODO GET REDUCERS FROM CONFIG FILE
-				String fileName = command.split(" ")[command.split(" ").length - 1];
-				File file = new File(fileName);
-				combiner(file, numReducers);
+			if(this.isMap) {
+				if (pro.exitValue() == 0) {
+					int numReducers = 3; // TODO GET REDUCERS FROM CONFIG FILE
+					String fileName = command.split(" ")[command.split(" ").length - 1];
+					File file = new File(fileName);
+					combiner(file, numReducers);
+				}
+				
+				sendMapResult(pro.exitValue());
 			}
 			
-			sendMapResult(pro.exitValue());
 		} catch (Exception e) {
 			e.printStackTrace();
 		}

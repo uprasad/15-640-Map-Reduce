@@ -26,7 +26,7 @@ public class JobTracker implements Runnable {
 	static FileSystem fileSystem = new FileSystem();
 	
 	// Table of jobs indexed by jobId
-	Hashtable<Integer, Job> jobTable = new Hashtable<Integer, Job>();
+	static Hashtable<Integer, Job> jobTable = new Hashtable<Integer, Job>();
 	
 	/*
  	 * Constructor for thread
@@ -231,6 +231,9 @@ public class JobTracker implements Runnable {
 				// creat new job and add to jobTable
 				Job newJob = new Job(numMappers, numReducers, jobId, inputDir);
 				jobTable.put(jobId, newJob);
+				//System.out.println("************" + jobTable.size());
+				String iDir = jobTable.get(jobId).getInputDir();
+				System.out.println("new jobID: " + jobId + " inputDir: " + iDir);
 				
 				String destDir = "./root";
 				String jarFolder = destDir + File.separator + "mapred" + jobId;
@@ -312,26 +315,66 @@ public class JobTracker implements Runnable {
 					System.out.println("Map Phase has finished for JobID " + jobId);
 					
 					//get node assignments for reduce tasks
+					System.out.println(jobTable);
+					System.out.println(jobTable.get(jobId));
 					String inputDir = jobTable.get(jobId).getInputDir();
+					System.out.println("inputDir: " + inputDir);
 					int[] reducerToNode = mapperScheduler(inputDir, numReducers, jobId);
 					
 					int inputDirLength = fileSystem.getFileLength(inputDir);
 					
-					for (int i=0; i<numReducers; i++) { // loop over reducers, start them
+					//send mapper inputs to each reducer
+					for(int i=0; i<numReducers; i++) {
 						jobTable.get(jobId).reduceList.add(i, new TaskDetails(i+1, reducerToNode[i], 
 								(double)inputDirLength/numReducers));
 						
-						//TODO: ask each mapper to send output to reducer i
-						/*
-						fileSystem.sendMapOutputToNode(inputDir, i+1, reducerToNode[i], jobId);
-						
-						File mapFile = new File(jarFolder + File.separator + "Map.class");
-						String dirName = "job" + Integer.toString(jobId);
-						
-						fileSystem.sendToNodeFolder(mapperToNode[i], mapFile, dirName);
-						startMapTask(jobId, i+1, mapperToNode[i], inputDir);
-						*/
+						//send each mapper's output to reducer
+						for(int j=0; j< numMappers; j++) {
+							int mapNode = jobTable.get(jobId).mapList.get(j).getNodeNum();
+							int reduceNode = reducerToNode[i];
+							fileSystem.sendMapOutputToNode(jobId, mapNode, j+1, reduceNode, i+1, inputDir);
+						}
 					}
+					
+					//TODO: send command to each reducer to merge files and start
+					File[] files = new File[numMappers];
+					
+					//merge all reducer inputs in reduceNode
+					for(int i=0; i<numReducers; i++) {
+						int reduceNode = reducerToNode[i];
+						String mergedFileName = "./root/" + Integer.toString(reduceNode) + "/" +
+								inputDir + "_" + Integer.toString(jobId) + "red" + 
+								Integer.toString(i+1);
+						File mergedFile = new File(mergedFileName);
+						
+						for(int j=0; j<numMappers; j++) {
+							int mapNode = jobTable.get(jobId).mapList.get(j).getNodeNum();
+							
+							String reducePartName = "./root/" + Integer.toString(mapNode) + "/" +
+								inputDir + "_" + Integer.toString(jobId) + "_" + Integer.toString(j+1) +
+								"out" + Integer.toString(i+1);
+							File reducePart = new File(reducePartName);
+							files[j] = reducePart;
+						}
+						
+						fileSystem.mergeFiles(files, mergedFile);
+						
+						//sort merged file
+						fileSystem.sortFile(mergedFile);
+					}
+					
+					//start Reduce tasks
+					for(int i=0; i<numReducers; i++) {
+						//send Reduce class to the reduceNode
+						String jarFolder = "./root" + File.separator + "mapred" + jobId;
+						File reduceFile = new File(jarFolder + File.separator + "Reduce.class");
+						String dirName = "job" + Integer.toString(jobId);
+					
+						fileSystem.sendToNodeFolder(reducerToNode[i], reduceFile, dirName);
+						
+						startReduceTask(jobId, numMappers, i+1, reducerToNode[i], inputDir);
+					}
+					
 				}
 			}
 		}
@@ -393,6 +436,51 @@ public class JobTracker implements Runnable {
 		} else {
 			System.out.println("ERROR in running Map phase");
 			jobTable.get(jobId).mapList.get(partition-1).setStatus(3);
+		}
+	}
+	
+	void startReduceTask(int jobId, int numMappers, int reduceNum, int reduceNode, String inputDir) {
+		TaskTrackerInfo ttiCur = getTaskTrackerInfoFromNodeNum(reduceNode);
+		if (ttiCur == null) {
+			System.out.println("Could not find task tracker!");
+			return;
+		}
+		
+		String taskIP = ttiCur.getIPAddress();
+		int taskPort = ttiCur.getServPort(); 
+		
+		Socket connection = null;
+		ObjectOutputStream oos = null;
+		ObjectInputStream ois = null;
+		try {
+			connection = new Socket(taskIP, taskPort);
+			
+			oos = new ObjectOutputStream(connection.getOutputStream());
+			oos.flush();
+			ois = new ObjectInputStream(connection.getInputStream());
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
+		String command = null;
+		try {
+			oos.writeObject("RunReduce");
+			oos.writeObject(jobId);
+			oos.writeObject(numMappers);
+			oos.writeObject(reduceNum);
+			oos.writeObject(inputDir);
+			
+			command = (String)ois.readObject();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
+		if (command.equals("ReduceDone")) {
+			System.out.println("Reduce has been finished");
+			jobTable.get(jobId).reduceList.get(reduceNum-1).setStatus(1);
+		} else {
+			System.out.println("ERROR in running Reduce phase");
+			jobTable.get(jobId).reduceList.get(reduceNum-1).setStatus(3);
 		}
 	}
 	

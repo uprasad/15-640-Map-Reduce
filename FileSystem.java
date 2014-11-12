@@ -352,6 +352,18 @@ public class FileSystem {
 		}
 	}
 	
+	//sorts a file by keys (first column) lexicographically
+	static void sortFile(File file) {
+		String absolutePath = file.getAbsolutePath();
+		ProcessBuilder pb = new ProcessBuilder("sort", absolutePath, "-o", absolutePath);
+		try {
+			pb.start();
+		} catch (Exception e) {
+			System.out.println("Error is sorting the Map output.");
+		}
+	}
+	
+	//merge files in files array to mergedFile
 	static void mergeFiles(File[] files, File mergedFile) {
 		FileWriter fstream = null;
 		BufferedWriter out = null;
@@ -527,6 +539,19 @@ public class FileSystem {
 		}
 		
 		sendToNode(nodeNum, partitionFile);
+	}
+	
+	static void sendMapOutputToNode(int jobId, int mapNode, int partitionNum, 
+			int reduceNode, int reducerNum, String inputDir) {
+		File dummyFile = new File(inputDir);
+		String formattedName = dummyFile.getName();
+		
+		String mapOutputFileName = "./root/" + Integer.toString(mapNode) + "/" + formattedName + 
+				"_" + Integer.toString(jobId) + "_" + Integer.toString(partitionNum) + "out"
+				+ Integer.toString(reducerNum);
+		File mapOutputFile = new File(mapOutputFileName);
+		
+		sendToNode(reduceNode, mapOutputFile);
 	}
 	
 	//send a file to nodeNum using network

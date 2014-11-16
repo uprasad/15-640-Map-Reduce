@@ -223,7 +223,7 @@ public class JobTracker implements Runnable {
 			}
 			
 			if (valid) { // If the job is valid
-				int numMappers = 3;
+				int numMappers = fileSystem.getNumParts(inputDir);
 				int numReducers = 3;
 				// Extract the .jar
 				extractJAR(jobId);
@@ -240,7 +240,7 @@ public class JobTracker implements Runnable {
 				
 				// scheduler for mapper stage
 				int[] mapperToNode = mapperScheduler(inputDir, numMappers, jobId);
-				fileSystem.splitToPartitions(inputDir, numMappers, jobId);
+				//fileSystem.splitToPartitions(inputDir, numMappers, jobId);
 				
 				int inputDirLength = fileSystem.getFileLength(inputDir);
 				
@@ -418,6 +418,7 @@ public class JobTracker implements Runnable {
 			e.printStackTrace();
 		}
 		
+		//send RunMap to TaskTracker on nodeNum
 		String command = null;
 		try {
 			oos.writeObject("RunMap");

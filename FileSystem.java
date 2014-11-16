@@ -133,10 +133,12 @@ public class FileSystem {
         for(String key: keys){
             FileEntry fileEntry = fileTable.get(key);
             
-            for(int i=0; i<fileEntry.getRFactor(); i++) {
-        		if(fileEntry.getEntry(i) == nodeNum) {
-        			fileEntry.editList(i,-1); //replica missing due to failure
-        		}
+            for(int p=0; p<fileEntry.getNumParts(); p++) {
+	            for(int i=0; i<fileEntry.getRFactor(); i++) {
+	        		if(fileEntry.getEntry(p, i) == nodeNum) {
+	        			fileEntry.editList(p, i, -1); //replica missing due to failure
+	        		}
+	            }
             }
         }
 	}
@@ -176,17 +178,21 @@ public class FileSystem {
 			return 1;
 		}
 		
+		int numParts = fileTable.get(fileName).getNumParts();
 		int rFactor = fileTable.get(fileName).getRFactor();
 		
 		//delete replicas
-		for(int i=0; i<rFactor; i++) {
-			int nodeNum = fileTable.get(fileName).getEntry(i);
-			
-			if(nodeNum>0) {
-				String deleteFileName = "./root/" + Integer.toString(nodeNum) + "/" + fileName;
-				File delFile = new File(deleteFileName);
+		for(int p=0; p<numParts; p++) {
+			for(int i=0; i<rFactor; i++) {
+				int nodeNum = fileTable.get(fileName).getEntry(p, i);
 				
-				delete(delFile);
+				if(nodeNum>0) {
+					String deleteFileName = "./root/" + Integer.toString(nodeNum) + "/" + fileName
+							+ Integer.toString(p+1);
+					File delFile = new File(deleteFileName);
+					
+					delete(delFile);
+				}
 			}
 		}
 		
@@ -291,13 +297,12 @@ public class FileSystem {
 			}
 		}
 		
-		//int rFactor = 3; // number of replicas created
-		int rFactor = 1; // for testing purposes
+		int rFactor = 3; // number of replicas created
+		//int rFactor = 1; // for testing purposes
 		
 		/*
 		 * Change name of mergedFile to original directory name
 		 */
-		//splitFiles(mergedFile, destDir.getName(), numParts);
 		String newFileName = "./root/" + destDir.getName() + "/" + destDir.getName();
 		File newFile = new File(newFileName);
 		boolean mergeStatus = mergedFile.renameTo(newFile);
@@ -307,39 +312,47 @@ public class FileSystem {
 			System.out.println("Files in " + destDir.getName() + " could not be merged successfully");
 		}
 		
+		//split newFile into numParts with prefix destDir's name
+		int fileLength = (int)newFile.length();
+		int numParts = (int)Math.ceil((double)fileLength/(1024*1024)); //split to 1MB chunks
+		splitFiles(newFile, destDir.getName(), numParts);
+		
 		//check if nodes < replication factor
 		if(nodeList.size() < rFactor) {
 			System.out.println("Number of Nodes is less than the replication factor of " + rFactor);
 			System.out.println(destDir.getName() + " could not be added");
 		} else {
 			//add to fileTable
-			FileEntry fileEntry = new FileEntry(destDir.getName(), rFactor);
+			FileEntry fileEntry = new FileEntry(destDir.getName(), numParts, rFactor, fileLength);
 			fileTable.put(destDir.getName(), fileEntry);
 			
-			//randomNumbers list to decide nodes for replicas
-			ArrayList<Integer> randomNumbers = new ArrayList<Integer>();
-			for(int i = 0; i<(nodeList.size()); i++) {
-				randomNumbers.add(i+1);
-			}
-			Collections.shuffle(randomNumbers);
-			
-			for(int i=0; i<rFactor; i++) {
-				//partionFileName and File object
-				String fileName = destDir.getAbsolutePath() + "/" + destDir.getName();
-				File file = new File(fileName);
+			//send each partition to replica no. of nodes
+			for(int p=0; p<numParts; p++) {
+				//randomNumbers list to decide nodes for replicas
+				ArrayList<Integer> randomNumbers = new ArrayList<Integer>();
+				for(int i = 0; i<(nodeList.size()); i++) {
+					randomNumbers.add(i+1);
+				}
+				Collections.shuffle(randomNumbers);
 				
-				//make replicaCopy with name appended
-				//String replicaCopyName = fileName + Integer.toString(i+1);
-				//File replicaCopy = new File(replicaCopyName);
-				//copyDir(file, replicaCopy);				
-				
-				//send replicas to nodes
-				int node = randomNumbers.get(i);
-				System.out.println("Copy " + (i+1) + " => " + "Node " + node);
-				sendToNode(node, file);
-				fileTable.get(destDir.getName()).editList(i, node);
+				for(int i=0; i<rFactor; i++) {
+					//partionFileName and File object
+					String fileName = destDir.getAbsolutePath() + "/" + destDir.getName() + Integer.toString(p+1);
+					File file = new File(fileName);
+					
+					//make replicaCopy with name appended
+					//String replicaCopyName = fileName + Integer.toString(i+1);
+					//File replicaCopy = new File(replicaCopyName);
+					//copyDir(file, replicaCopy);				
+					
+					//send replicas to nodes
+					int node = randomNumbers.get(i);
+					System.out.println("Partition " + (p+1) + ", Copy " + (i+1) + " => " + "Node " + node);
+					sendToNode(node, file);
+					fileTable.get(destDir.getName()).editList(p, i, node);
+				}
 			}
-			
+				
 			//remove replicaCopies
 			String replicaFileNames[] = destDir.list();
 			for(String replicaFileName: replicaFileNames) {
@@ -527,19 +540,18 @@ public class FileSystem {
 		}
 		
 		//check formatting of fileName
-		File dummyFile = new File(fileName);
-		String formattedFileName = dummyFile.getName();
+		fileName = getFormattedFileName(fileName);
 		
-		String partitionFileName = "./root/" + formattedFileName + "/" + formattedFileName 
-				+ "_" + Integer.toString(jobID) + "_" + Integer.toString(partNum);
-		File partitionFile = new File(partitionFileName);
-		
-		if(!partitionFile.exists()) {
-			System.out.println("Partition " + partNum + " does not exist for " + fileName);
-			return;
+		//find if partition is in nodeNum
+		int present = checkFilePartInNode(fileName, partNum, nodeNum);
+		//part not present, send to nodeNum using Network
+		if(present == 0) {
+			String partitionFileName = "./root/" + Integer.toString(nodeNum) + "/" + fileName 
+					+ Integer.toString(partNum);
+			File partitionFile = new File(partitionFileName);
+			
+			sendToNode(nodeNum, partitionFile);
 		}
-		
-		sendToNode(nodeNum, partitionFile);
 	}
 	
 	static void sendMapOutputToNode(int jobId, int mapNode, int partitionNum, 
@@ -646,14 +658,42 @@ public class FileSystem {
 		}
 		
 		fileName = getFormattedFileName(fileName);
-		fileName = "./root/" + fileName + "/" + fileName;
 		
-		File file = new File(fileName);
-		return (int)file.length();
+		return fileTable.get(fileName).getFileLength();
 	}
 	
 	static String getFormattedFileName(String fileName) {
 		File dummyFile = new File(fileName);
 		return dummyFile.getName();
+	}
+	
+	static int getNumParts(String fileName) {
+		if(filePresent(fileName) == 0) {
+			return 0;
+		}
+		
+		fileName = getFormattedFileName(fileName);
+		
+		return fileTable.get(fileName).getNumParts();
+	}
+	
+	//return 1 if present, else 0
+	static int checkFilePartInNode(String fileName, int partNum, int nodeNum) {
+		if(filePresent(fileName) == 0) {
+			return 0;
+		}
+		
+		fileName = getFormattedFileName(fileName);
+		
+		int present = 0;
+		
+		for(int i=0; i<(fileTable.get(fileName).getRFactor()); i++) {
+			if(fileTable.get(fileName).getEntry(partNum-1, i) == nodeNum) {
+				present = 1;
+				break;
+			}
+		}
+		
+		return present;
 	}
 }

@@ -169,14 +169,17 @@ public class TaskTracker implements Runnable {
 				e.printStackTrace();
 			}
 			
-			inputDir = "./root/" + Integer.toString(nodeNumber) + 
+			String outputDir = "./root/" + Integer.toString(nodeNumber) + 
 					"/" + inputDir + "_" + Integer.toString(jobId) + 
-					"_" + Integer.toString(partition);
+					"_" + Integer.toString(partition) + "out";
+			
+			inputDir = "./root/" + Integer.toString(nodeNumber) + 
+					"/" + inputDir + Integer.toString(partition);
 			
 			String mapDir = "root/" + Integer.toString(nodeNumber) + 
 					"/job" + Integer.toString(jobId);
 			String mapCommand = "java -cp " + mapDir + "/ " + 
-					"Map " + inputDir + " " + inputDir + "out";
+					"Map " + inputDir + " " + outputDir;
 			RunProcess mapProcess = new RunProcess(mapCommand, jobId, partition, true);
 			Thread t = new Thread(mapProcess);
 			t.start();

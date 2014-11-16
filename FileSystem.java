@@ -314,7 +314,7 @@ public class FileSystem {
 		
 		//split newFile into numParts with prefix destDir's name
 		int fileLength = (int)newFile.length();
-		int numParts = (int)Math.ceil((double)fileLength/(1024*1024)); //split to 1MB chunks
+		int numParts = (int)Math.ceil((double)fileLength/(3*1024*1024)); //split to 3MB chunks
 		splitFiles(newFile, destDir.getName(), numParts);
 		
 		//check if nodes < replication factor

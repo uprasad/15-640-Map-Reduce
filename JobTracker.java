@@ -296,7 +296,7 @@ public class JobTracker implements Runnable {
 				double oldLoad = ti.getLoad();
 				ti.removeLoad(taskLoad);
 				double newLoad = getTaskTrackerInfoFromNodeNum(nodeNum).getLoad();
-				System.out.println("Node " + nodeNum + " => Load: " + oldLoad + " to " + newLoad);
+				System.out.println("Node " + nodeNum + " => Load Dec: " + oldLoad + " to " + newLoad);
 				
 				//check if all Mappers are done
 				int numMappers = jobTable.get(jobId).mapList.size();
@@ -489,23 +489,30 @@ public class JobTracker implements Runnable {
 	 * TODO: change name to taskScheduler
 	 */
 	int[] mapperScheduler(String inputDir, int numMappers, int jobID) {
-		// Priority queue for scheduler
-		Comparator<TaskTrackerInfo> ttiComparator = new TaskTrackerInfoComparator();
-		PriorityQueue<TaskTrackerInfo> ttiQueue = new PriorityQueue<TaskTrackerInfo>(10, ttiComparator);
-		
-		// Put all the task trackers into the priority queue
-		Iterator<TaskTrackerInfo> ttiEnum = taskTrackerTable.values().iterator();
-		while (ttiEnum.hasNext()) {
-			TaskTrackerInfo tti = ttiEnum.next();
-			ttiQueue.add(tti);
-		}
-		
-		//System.out.println(ttiQueue.size());
-		
-		int inputDirLength = fileSystem.getFileLength(inputDir);
 		
 		int[] mapperToNode = new int[numMappers];
+		
 		for (int i=0; i<numMappers; i++) {
+			// Priority queue for scheduler
+			Comparator<TaskTrackerInfo> ttiComparator = new TaskTrackerInfoComparator();
+			PriorityQueue<TaskTrackerInfo> ttiQueue = new PriorityQueue<TaskTrackerInfo>(10, ttiComparator);
+			
+			// Put all the task trackers into the priority queue which have partNum of inputDir
+			Iterator<TaskTrackerInfo> ttiEnum = taskTrackerTable.values().iterator();
+			while (ttiEnum.hasNext()) {
+				TaskTrackerInfo tti = ttiEnum.next();
+				//add only if it has the partition of the inputDir
+				if(fileSystem.checkFilePartInNode(inputDir, i+1, tti.getNodeNum()) == 1) {
+					ttiQueue.add(tti);
+				}
+			}
+			
+			//System.out.println(ttiQueue.size());
+			
+			//get inputDir's size
+			int inputDirLength = fileSystem.getFileLength(inputDir);
+			
+			//add the TaskTracker with the least load
 			TaskTrackerInfo ttiMin = ttiQueue.poll();
 			ttiMin.addLoad((double)inputDirLength/numMappers);
 			//ttiMin.addLoad(jobTable.get(jobId).mapList.get(i).getLoad());

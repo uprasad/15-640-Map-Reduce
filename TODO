@@ -1,4 +1,2 @@
 change stdout msgs to log msgs
 Finish TODOs in code
-write a combiner:
-	will take filename as input, output #numReducers files, using a string hash function % #numReducers

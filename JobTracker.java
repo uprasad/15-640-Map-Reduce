@@ -23,7 +23,7 @@ public class JobTracker implements Runnable {
 	//maintain connection for TaskTracker and TaskTrakerInfo
 	static Hashtable<Socket, TaskTrackerInfo> taskTrackerTable = new Hashtable<Socket, TaskTrackerInfo>();
 	//FileSystem for DFS
-	static FileSystem fileSystem = new FileSystem();
+	static FileSystem fileSystem = null;
 	
 	// Table of jobs indexed by jobId
 	static Hashtable<Integer, Job> jobTable = new Hashtable<Integer, Job>();
@@ -42,7 +42,17 @@ public class JobTracker implements Runnable {
 			System.exit(1);
 		}
 		
+		
 		int jobTrackerPort = Integer.parseInt(args[0]);
+		
+		String jobTrackerIP = null;
+		try {
+			jobTrackerIP = InetAddress.getLocalHost().getHostAddress().toString();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
+		fileSystem = new FileSystem(jobTrackerIP, jobTrackerPort);
 		
 		ServerSocket jobTrackerSocket = null;
 		
@@ -172,6 +182,32 @@ public class JobTracker implements Runnable {
 			} catch (Exception e) {
 				e.printStackTrace();
 			} 
+		} else if (command.equals("copyFile")) {
+			String fileName = null;
+			try {
+				//copy file to node
+				fileName = (String)ois.readObject();
+				
+				byte[] bytearray = new byte[1024];
+				
+				//file reader stream
+				InputStream is = newConnection.getInputStream();
+				
+				//file writer stream
+				FileOutputStream fos = new FileOutputStream(fileName);
+			    BufferedOutputStream bos = new BufferedOutputStream(fos);
+			    
+			    int bytesRead;
+			    
+			    while((bytesRead = is.read(bytearray)) > 0 ) {
+			    	bos.write(bytearray, 0, bytesRead);
+			    }
+			    bos.close();
+			    
+			    //oos.writeObject("OK");
+			} catch(Exception e) {
+				e.printStackTrace();
+			}
 		} else if (command.equals("delete")) {
 			/* delete data from DFS*/
 			

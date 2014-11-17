@@ -11,8 +11,13 @@ public class FileSystem {
 	//nodeInfo for every node in the cluster
 	static Hashtable<Integer,TaskTrackerInfo> nodeInfo = new Hashtable<Integer,TaskTrackerInfo>();
 	
+	static String jobTrackerIP = null;
+	static int jobTrackerPort;
+	
 	//constructor which initializes the fileTable
-	FileSystem() {
+	FileSystem(String ip, int port) {
+		this.jobTrackerIP = ip;
+		this.jobTrackerPort = port;
 		createRoot();
 	}
 	
@@ -143,6 +148,17 @@ public class FileSystem {
         }
 	}
 	
+	static void copyFiles(File srcDir, String destDir) {
+		File[] listOfFiles = srcDir.listFiles();
+		
+		for (int i=0; i<listOfFiles.length; i++) {
+			if (listOfFiles[i].isFile()) {
+				System.out.println("Input file: " + listOfFiles[i].getName());
+				sendToJobTrackerFolder(listOfFiles[i], destDir);
+			}
+		}
+	}
+	
 	//adds a file(directory) to the fileTable
 	static int addFile(String fileName) {
 		File srcDir = new File(fileName);
@@ -160,7 +176,8 @@ public class FileSystem {
 			String dest = "./root/" + srcDir.getName();
 			File destDir = new File(dest);
 			
-			copyDir(srcDir,destDir);
+			//copyDir(srcDir,destDir);
+			copyFiles(srcDir, dest);
 			
 			//add from temp to fileTable
 			addEntry(destDir);
@@ -634,6 +651,52 @@ public class FileSystem {
 			BufferedInputStream in = new BufferedInputStream(new FileInputStream(file));
 			
 			oos.writeObject("CopyFile");
+			String destFileName = dirPath + "/" + file.getName(); 
+			oos.writeObject(destFileName);
+			
+			int count;
+			
+			while ((count = in.read(buffer)) > 0) {
+			     out.write(buffer, 0, count);
+			     out.flush();
+			}
+			out.close();
+			
+			//System.out.println((String)ois.readObject());
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+	
+	//send a file to job tracker's dirName using network
+	static void sendToJobTrackerFolder(File file, String dirName) {
+		
+		//create dirPath if doesn't exist in nodeNum
+		//String dirPath = "./root/" + dirName;
+		String dirPath = dirName;
+		File dir = new File(dirPath);
+		
+		if(!dir.exists()) {
+			dir.mkdir();
+		}
+		
+		Socket connection = null;
+		try {
+			connection = new Socket(jobTrackerIP, jobTrackerPort);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
+		try {
+			ObjectOutputStream oos = new ObjectOutputStream(connection.getOutputStream());
+			oos.flush();
+			ObjectInputStream ois = new ObjectInputStream(connection.getInputStream());
+			
+			byte[] buffer = new byte[1024];
+			OutputStream out = connection.getOutputStream();
+			BufferedInputStream in = new BufferedInputStream(new FileInputStream(file));
+			
+			oos.writeObject("copyFile");
 			String destFileName = dirPath + "/" + file.getName(); 
 			oos.writeObject(destFileName);
 			

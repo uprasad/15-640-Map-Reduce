@@ -34,6 +34,9 @@ class UserInput implements Runnable {
 			case 4:
 				MapReduce.startNewJob();
 				break;
+			case 5:
+				MapReduce.jobInfo();
+				break;
 			default:
 				System.out.println("Invalid choice. Try again.");
 				choice = -1;
@@ -58,6 +61,7 @@ public class MapReduce {
 		System.out.println("2. Copy Directory to DFS");
 		System.out.println("3. Delete Directory in DFS");
 		System.out.println("4. Start a new job");
+		System.out.println("5. View Job Details");
 		System.out.println("************************");
 		System.out.println();
 	}
@@ -112,6 +116,85 @@ public class MapReduce {
 			tti.printInfo();
 		}
 	}
+	
+	static void jobInfo() {
+		System.out.print("Enter jobID:");
+		
+		//get jobId from user
+		String jID;
+		Scanner in = new Scanner(System.in);
+		jID = in.nextLine();
+		
+		Integer jobId = Integer.parseInt(jID); 
+		
+		Socket socket = null;
+		ObjectInputStream ois = null;
+		ObjectOutputStream oos = null;
+		
+		/*Connect to JobTracker*/
+		try {
+			socket = new Socket(jobTrackerIP, jobTrackerPort);
+			oos = new ObjectOutputStream(socket.getOutputStream());
+			oos.flush();
+			ois = new ObjectInputStream(socket.getInputStream());
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
+		/*Get jobInfo from JobTracker*/
+		Job jobInfo = null;
+		List<TaskDetails> mapList = null;
+		List<TaskDetails> reduceList = null;
+		try {
+			oos.writeObject("JobInfo");
+			oos.writeObject(jobId);
+			jobInfo = (Job)ois.readObject();
+			mapList = (List<TaskDetails>)ois.readObject();
+			reduceList = (List<TaskDetails>)ois.readObject();
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
+		if(jobInfo == null) {
+			System.out.println("Job with jobID " + jobId + " not found!");
+			return;
+		}
+		
+		/*Iterate and print all task details*/
+		int numMappers = jobInfo.getNumMappers();
+		int numReducers = jobInfo.getNumReducers();
+		
+		String inputDir = jobInfo.getInputDir();
+		String outputDir = jobInfo.getOutputDir();
+		
+		System.out.println("\nJob " + jobId);
+		System.out.println("NumMappers:" + numMappers + "\tNumReducers:" + numReducers);
+		System.out.println("InputDir:" + inputDir + "\tOutputDir:" + outputDir);
+		System.out.println("----------------");
+		System.out.println("Map Phase");
+		
+		if(mapList != null) {		
+			for(int i=0; i<numMappers; i++) {
+				int nodeNum = mapList.get(i).getNodeNum();
+				String statusMessage = mapList.get(i).getStatusMessage(); 
+				
+				System.out.println("Mapper " + (i+1) + "\tnodeNum:" + nodeNum + "\tStatus:" + statusMessage);
+			}
+		}
+		
+		System.out.println("----------------");
+		System.out.println("Reduce Phase");
+		
+		if(reduceList != null) {
+			for(int i=0; i<numReducers; i++) {
+				int nodeNum = reduceList.get(i).getNodeNum();
+				String statusMessage = reduceList.get(i).getStatusMessage(); 
+				
+				System.out.println("Reducer " + (i+1) + "\tnodeNum:" + nodeNum + "\tStatus:" + statusMessage);
+			}
+		}
+	}
 
 	static void copyData() {
 		System.out.print("Enter source directory:");
@@ -122,7 +205,7 @@ public class MapReduce {
 
 		Socket socket = null;
 		ObjectInputStream ois = null;
-                ObjectOutputStream oos = null;
+        ObjectOutputStream oos = null;
 
         /*Connect to JobTracker*/
         try {

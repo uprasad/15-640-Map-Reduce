@@ -152,6 +152,24 @@ public class JobTracker implements Runnable {
 				e.printStackTrace();
 			}
 			System.out.println("JobTracker replied to ListTaskTracker.");
+		} else if (command.equals("JobInfo")) {
+			Integer jobId = null;
+			try {
+				jobId = (Integer)ois.readObject();
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			
+			Job jobInfo = jobTable.get(jobId);
+			
+			try {
+				oos.writeObject(jobInfo);
+				oos.writeObject(jobInfo.mapList);
+				oos.writeObject(jobInfo.reduceList);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			System.out.println("JobTracker replied to JobInfo.");
 		} else if (command.equals("copy")) {
 			/* copy data into DFS*/
 			

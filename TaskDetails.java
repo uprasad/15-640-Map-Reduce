@@ -3,7 +3,7 @@ import java.util.*;
 import java.net.*;
 import java.io.*;
 
-public class TaskDetails {
+public class TaskDetails implements Serializable{
 	
 	/*
 	 * status
@@ -42,5 +42,19 @@ public class TaskDetails {
 	
 	void setStatus(int newStatus) {
 		this.status = newStatus;
+	}
+	
+	String getStatusMessage() {
+		if(status == 0) {
+			return "Task Not Started";
+		} else if(status == 1) {
+			return "Task Submitted";
+		} else if(status == 2) {
+			return "Task completed successfully";
+		} else if(status == 3) {
+			return "Error in task. Aborted.";
+		} else {
+			return "NA";
+		}
 	}
 }

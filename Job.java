@@ -3,7 +3,7 @@ import java.util.*;
 import java.net.*;
 import java.io.*;
 
-public class Job {
+public class Job implements Serializable{
 	static List<TaskDetails> mapList = null;
 	static List<TaskDetails> reduceList = null;
 	

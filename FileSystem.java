@@ -759,4 +759,19 @@ public class FileSystem {
 		
 		return present;
 	}
+	
+	static int addOutputFile(String fileName, int numReducers) {
+		if(filePresent(fileName)==1) {
+			return 1;
+		}
+		
+		FileEntry fileEntry = new FileEntry(fileName, numReducers, 1, -1);
+		fileTable.put(fileName, fileEntry);
+		
+		return 0;
+	}
+	
+	static void addOutputFilePart(String fileName, int partNum, int nodeNum) {
+		fileTable.get(fileName).editList(partNum-1, 0, nodeNum);
+	}
 }

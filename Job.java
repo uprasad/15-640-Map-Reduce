@@ -12,8 +12,9 @@ public class Job {
 	
 	int jobId;
 	String inputDir; //inputDir name as in the FileSystem
+	String outputDir;
 	
-	Job(int numMappers, int numReducers, int jobId, String inputDir) {
+	Job(int numMappers, int numReducers, int jobId, String inputDir, String outputDir) {
 		mapList = new ArrayList<TaskDetails>(numMappers);
 		reduceList = new ArrayList<TaskDetails>(numReducers);
 		
@@ -22,6 +23,7 @@ public class Job {
 		
 		this.jobId = jobId;
 		this.inputDir = inputDir;
+		this.outputDir = outputDir;
 	}
 	
 	int getJobId() {
@@ -38,5 +40,9 @@ public class Job {
 	
 	String getInputDir() {
 		return inputDir;
+	}
+	
+	String getOutputDir() {
+		return outputDir;
 	}
 }

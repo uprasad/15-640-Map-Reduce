@@ -160,10 +160,12 @@ public class TaskTracker implements Runnable {
 		} else if (command.equals("RunMap")) {
 			Integer partition = null;
 			Integer jobId = null;
+			Integer numReducers = null;
 			String inputDir = null;
 			try {
 				partition = (Integer)ois.readObject();
 				jobId = (Integer)ois.readObject();
+				numReducers = (Integer)ois.readObject();
 				inputDir = (String)ois.readObject();
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -180,7 +182,7 @@ public class TaskTracker implements Runnable {
 					"/job" + Integer.toString(jobId);
 			String mapCommand = "java -cp " + mapDir + "/ " + 
 					"Map " + inputDir + " " + outputDir;
-			RunProcess mapProcess = new RunProcess(mapCommand, jobId, partition, true);
+			RunProcess mapProcess = new RunProcess(mapCommand, jobId, partition, numReducers, true);
 			Thread t = new Thread(mapProcess);
 			t.start();
 			
@@ -194,11 +196,13 @@ public class TaskTracker implements Runnable {
 			Integer numMappers = null;
 			Integer reduceNum = null;
 			String inputDir = null;
+			String outputDir = null;
 			try {
 				jobId = (Integer)ois.readObject();
 				numMappers = (Integer)ois.readObject();
 				reduceNum = (Integer)ois.readObject();
 				inputDir = (String)ois.readObject();
+				outputDir = (String)ois.readObject();
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
@@ -209,10 +213,15 @@ public class TaskTracker implements Runnable {
 			
 			String reduceDir = "root/" + Integer.toString(nodeNumber) + 
 					"/job" + Integer.toString(jobId);
+			
+			outputDir = "./root/" + Integer.toString(nodeNumber) + "/" + 
+					outputDir + Integer.toString(reduceNum);
+			
 			System.out.println("************" + inputDir);
 			String reduceCommand = "java -cp " + reduceDir + "/ " + 
-					"Reduce " + inputDir + " " + inputDir + "out";
-			RunProcess reduceProcess = new RunProcess(reduceCommand, jobId, reduceNum, false);
+					"Reduce " + inputDir + " " + outputDir;
+			System.out.println("************" + outputDir);
+			RunProcess reduceProcess = new RunProcess(reduceCommand, jobId, reduceNum, 0, false);
 			Thread t = new Thread(reduceProcess);
 			t.start();
 			
@@ -229,6 +238,7 @@ class RunProcess implements Runnable {
 	String command = null;
 	int jobId = 0;
 	int partition = 0;
+	int numReducers = 0;
 	boolean isMap;
 	
 	void combiner(File file, int numReducers) {
@@ -274,10 +284,11 @@ class RunProcess implements Runnable {
 		System.out.println("Combiner done");
 	}
 	
-	RunProcess(String command, int jobId, int partition, boolean isMap) {
+	RunProcess(String command, int jobId, int partition, int numReducers, boolean isMap) {
 		this.command = command;
 		this.jobId = jobId;
 		this.partition = partition;
+		this.numReducers = numReducers;
 		this.isMap = isMap;
 	}
 	
@@ -300,13 +311,14 @@ class RunProcess implements Runnable {
 			
 			if(this.isMap) {
 				if (pro.exitValue() == 0) {
-					int numReducers = 3; // TODO GET REDUCERS FROM CONFIG FILE
 					String fileName = command.split(" ")[command.split(" ").length - 1];
 					File file = new File(fileName);
 					combiner(file, numReducers);
 				}
 				
 				sendMapResult(pro.exitValue());
+			} else {
+				sendReduceResult(pro.exitValue());
 			}
 			
 		} catch (Exception e) {
@@ -327,6 +339,28 @@ class RunProcess implements Runnable {
 			ois = new ObjectInputStream(connection.getInputStream());
 			
 			oos.writeObject("MapResult");
+			oos.writeObject(jobId);
+			oos.writeObject(partition);
+			oos.writeObject(exitValue);
+		} catch (Exception e) {
+			e.printStackTrace();
+			System.exit(1);
+		}
+	}
+	
+	private void sendReduceResult(int exitValue) {
+		Socket connection = null;
+		ObjectOutputStream oos = null;
+		ObjectInputStream ois = null;
+		int jobTrackerPort = TaskTracker.jobTrackerPort;
+		String jobTrackerIP = TaskTracker.jobTrackerIP;
+		try {
+			connection = new Socket(jobTrackerIP, jobTrackerPort);
+			oos = new ObjectOutputStream(connection.getOutputStream());
+			oos.flush();
+			ois = new ObjectInputStream(connection.getInputStream());
+			
+			oos.writeObject("ReduceResult");
 			oos.writeObject(jobId);
 			oos.writeObject(partition);
 			oos.writeObject(exitValue);

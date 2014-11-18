@@ -193,14 +193,69 @@ public class MapReduce {
 	}
 	
 	static void startNewJob() {
-		System.out.println("Enter input directory");
+		System.out.println("Enter config file path");
 		
-		String inputDir = null;
+		String configPath = null;
 		Scanner in = new Scanner(System.in);
-		inputDir = in.nextLine();
+		configPath = in.nextLine();
 		
-		File fileObject = new File(inputDir);
-		inputDir = fileObject.getName();
+		File configFileObject = new File(configPath);
+		//inputDir = fileObject.getName();
+		
+		if(!configFileObject.exists()) {
+			System.out.println("The config file " + configPath + " does not exist. Try again!");
+			return;
+		}
+		
+		//load properties from config file
+		Properties properties = new Properties();
+		try {
+            FileInputStream configFIS = new FileInputStream(configFileObject);
+            properties.load(configFIS);
+            configFIS.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+		
+		//read INPUT_DIR
+		if(!properties.containsKey("INPUT_DIR")) {
+			System.out.println("INPUT_DIR is missing in the config file. Try again!");
+			return;
+		}
+		
+		String inputDir = (String)properties.get("INPUT_DIR");
+		
+		if(inputDir == null) {
+			System.out.println("INPUT_DIR entry is missing in the config file. Try again!");
+			return;
+		}
+		
+		//read OUTPUT_DIR
+		if(!properties.containsKey("OUTPUT_DIR")) {
+			System.out.println("OUTPUT_DIR is missing in the config file. Try again!");
+			return;
+		}
+		
+		String outputDir = (String)properties.get("OUTPUT_DIR");
+		
+		if(outputDir == null) {
+			System.out.println("OUTPUT_DIR entry is missing in the config file. Try again!");
+			return;
+		}
+		
+		//read numReducers
+		Integer numReducers;
+		if(!properties.containsKey("NUM_REDUCERS")) {
+			System.out.println("NUM_REDUCERS is missing in the config file. Try again!");
+			return;
+		}
+		
+		numReducers = Integer.parseInt((String)properties.get("NUM_REDUCERS"));
+		
+		if(numReducers == null) {
+			System.out.println("NUM_REDUCERS entry is missing in the config file. Try again!");
+			return;
+		}
 		
 		Socket socket = null;
 		ObjectInputStream ois = null;
@@ -219,12 +274,16 @@ public class MapReduce {
         try {
 			oos.writeObject("NewJob");
 			oos.writeObject(inputDir);
+			oos.writeObject(outputDir);
+			oos.writeObject(numReducers);
 			String ack = (String)ois.readObject();
 			
 			if (ack.equals("NotDir")) {
 				System.out.println("Not a directory!");
 			} else if (ack.equals("NotExist")) {
 				System.out.println("No such directory exists!");
+			} else if (ack.equals("OutDuplicate")) {
+				System.out.println(outputDir + " already exists in the DFS. Try another name!");
 			} else if (ack.equals("AckDir")) {
 				
 				System.out.println("Name of .jar file with compiled .class files of mapper and reducer");

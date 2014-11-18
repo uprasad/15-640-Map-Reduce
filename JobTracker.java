@@ -238,36 +238,57 @@ public class JobTracker implements Runnable {
 			
 			jobId++;
 			String inputDir = null;
+			String outputDir = null;
+			Integer numReducers = null;
 			
 			try {
 				inputDir = (String)ois.readObject();
+				outputDir = (String)ois.readObject();
+				numReducers = (Integer)ois.readObject();
 			} catch (Exception e) { 
 				e.printStackTrace();
 			}
 			
+			//check if inputDir exists
 			boolean valid = false;
 			try {
 				if (fileSystem.filePresent(inputDir) == 0) {
 					oos.writeObject("NotExist");
+				} else {
+					valid = true;
+					oos.writeObject("AckDir");
+					System.out.println("Input directory for new job: " + inputDir);
 				}
-				
-				valid = true;
-				oos.writeObject("AckDir");
-				System.out.println("Input directory for new job: " + inputDir);
 			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			
+			//check if outputDir is not duplicate
+			try {
+				outputDir = fileSystem.getFormattedFileName(outputDir);
+				if (fileSystem.filePresent(outputDir) == 1) {
+					oos.writeObject("OutDuplicate");
+					valid = false;
+				} else {
+					int status = fileSystem.addOutputFile(outputDir, numReducers);
+					if(status == 1) {
+						oos.writeObject("OutDuplicate");
+						valid = false;
+					}
+				}
+			} catch(Exception e) {
 				e.printStackTrace();
 			}
 			
 			if (valid) { // If the job is valid
 				int numMappers = fileSystem.getNumParts(inputDir);
-				int numReducers = 3;
 				// Extract the .jar
 				extractJAR(jobId);
 				
 				// creat new job and add to jobTable
-				Job newJob = new Job(numMappers, numReducers, jobId, inputDir);
+				Job newJob = new Job(numMappers, numReducers, jobId, inputDir, outputDir);
 				jobTable.put(jobId, newJob);
-				//System.out.println("************" + jobTable.size());
+				
 				String iDir = jobTable.get(jobId).getInputDir();
 				System.out.println("new jobID: " + jobId + " inputDir: " + iDir);
 				
@@ -347,7 +368,7 @@ public class JobTracker implements Runnable {
 				//start reduce phase if all mappers are complete
 				if(mapFinish == 0) {
 					//start reduce phase for jobId
-					int numReducers = 3;
+					int numReducers = jobTable.get(jobId).getNumReducers();
 					System.out.println("Map Phase has finished for JobID " + jobId);
 					
 					//get node assignments for reduce tasks
@@ -413,6 +434,66 @@ public class JobTracker implements Runnable {
 					
 				}
 			}
+		} else if (command.equals("ReduceResult")) {
+			Integer jobId = null;
+			Integer partition = null;
+			Integer exitValue = null;
+			try {
+				jobId = (Integer)ois.readObject();
+				partition = (Integer)ois.readObject();
+				exitValue = (Integer)ois.readObject();
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			
+			if (exitValue != 0) {
+				System.out.println("Reduce task " + partition + " of jobId " + jobId + " failed.");
+				
+				//update jobList
+				jobTable.get(jobId).reduceList.get(partition-1).setStatus(3);
+				int nodeNum = jobTable.get(jobId).reduceList.get(partition-1).getNodeNum();
+				
+				//update TaskTracker load
+				TaskTrackerInfo ti = getTaskTrackerInfoFromNodeNum(nodeNum);
+				double taskLoad = jobTable.get(jobId).reduceList.get(partition-1).getLoad();
+				double oldLoad = ti.getLoad();
+				ti.removeLoad(taskLoad);
+				double newLoad = getTaskTrackerInfoFromNodeNum(nodeNum).getLoad();
+				System.out.println("Node " + nodeNum + " => Load: " + oldLoad + " to " + newLoad);
+			} else {
+				System.out.println("Reduce task " + partition + " of jobId " + jobId + " DONE.");
+				
+				//update jobList
+				jobTable.get(jobId).reduceList.get(partition-1).setStatus(2);
+				int nodeNum = jobTable.get(jobId).reduceList.get(partition-1).getNodeNum();
+				
+				//add outputFile partitions to fileSystem
+				String outputDir = jobTable.get(jobId).getOutputDir();
+				fileSystem.addOutputFilePart(outputDir, partition, nodeNum);
+				
+				//update TaskTracker load
+				TaskTrackerInfo ti = getTaskTrackerInfoFromNodeNum(nodeNum);
+				double taskLoad = jobTable.get(jobId).reduceList.get(partition-1).getLoad();
+				double oldLoad = ti.getLoad();
+				ti.removeLoad(taskLoad);
+				double newLoad = getTaskTrackerInfoFromNodeNum(nodeNum).getLoad();
+				System.out.println("Node " + nodeNum + " => Load Dec: " + oldLoad + " to " + newLoad);
+				
+				//check if all Reducers are done
+				int numReducers = jobTable.get(jobId).getNumReducers();
+				int reduceFinish = 0;
+				for(int i=0;i<numReducers;i++) {
+					if(jobTable.get(jobId).reduceList.get(i).getStatus() != 2) {
+						reduceFinish++;
+						break;
+					}
+				}
+				
+				//start reduce phase if all mappers are complete
+				if(reduceFinish == 0) {					
+					System.out.println("Reduce Phase has finished for JobID " + jobId);
+				}
+			}
 		}
 	}
 	
@@ -454,12 +535,16 @@ public class JobTracker implements Runnable {
 			e.printStackTrace();
 		}
 		
+		//get numReducers
+		int numReducers = jobTable.get(jobId).getNumReducers();
+		
 		//send RunMap to TaskTracker on nodeNum
 		String command = null;
 		try {
 			oos.writeObject("RunMap");
 			oos.writeObject(partition);
 			oos.writeObject(jobId);
+			oos.writeObject(numReducers);
 			oos.writeObject(inputDir);
 			
 			command = (String)ois.readObject();
@@ -499,13 +584,18 @@ public class JobTracker implements Runnable {
 			e.printStackTrace();
 		}
 		
+		//get outputDir
+		String outputDir = jobTable.get(jobId).getOutputDir();
+		
 		String command = null;
 		try {
 			oos.writeObject("RunReduce");
+			
 			oos.writeObject(jobId);
 			oos.writeObject(numMappers);
 			oos.writeObject(reduceNum);
 			oos.writeObject(inputDir);
+			oos.writeObject(outputDir);
 			
 			command = (String)ois.readObject();
 		} catch (Exception e) {

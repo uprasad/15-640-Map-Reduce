@@ -768,10 +768,26 @@ public class FileSystem {
 		FileEntry fileEntry = new FileEntry(fileName, numReducers, 1, -1);
 		fileTable.put(fileName, fileEntry);
 		
+		//initialize all parts to 0 node
+		for(int i=0; i<numReducers; i++) {
+			fileTable.get(fileName).editList(i, 0, 0);
+		}
+		
 		return 0;
 	}
 	
 	static void addOutputFilePart(String fileName, int partNum, int nodeNum) {
 		fileTable.get(fileName).editList(partNum-1, 0, nodeNum);
+	}
+	
+	static FileEntry getFileEntry(String fileName) {
+		FileEntry fileEntry = null;
+		
+		fileName = getFormattedFileName(fileName);
+		if(filePresent(fileName) == 1) {
+			fileEntry = fileTable.get(fileName);
+		}
+		
+		return fileEntry;
 	}
 }

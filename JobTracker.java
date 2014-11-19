@@ -170,6 +170,30 @@ public class JobTracker implements Runnable {
 				e.printStackTrace();
 			}
 			System.out.println("JobTracker replied to JobInfo.");
+		} else if (command.equals("GetOutput")) {
+			String outputDir = null;
+			try {
+				outputDir = (String)ois.readObject();
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			
+			//check if outputDir in FileSystem 
+			outputDir = fileSystem.getFormattedFileName(outputDir);
+			int present = fileSystem.filePresent(outputDir);
+			
+			FileEntry outEntry = null;
+			
+			if(present == 1) {
+				outEntry = fileSystem.getFileEntry(outputDir);
+			}
+			
+			try {
+				oos.writeObject(outEntry);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			System.out.println("JobTracker replied to GetOutput.");
 		} else if (command.equals("copy")) {
 			/* copy data into DFS*/
 			

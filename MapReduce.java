@@ -37,6 +37,9 @@ class UserInput implements Runnable {
 			case 5:
 				MapReduce.jobInfo();
 				break;
+			case 6:
+				MapReduce.getOutput();
+				break;
 			default:
 				System.out.println("Invalid choice. Try again.");
 				choice = -1;
@@ -62,6 +65,7 @@ public class MapReduce {
 		System.out.println("3. Delete Directory in DFS");
 		System.out.println("4. Start a new job");
 		System.out.println("5. View Job Details");
+		System.out.println("6. View Output Files");
 		System.out.println("************************");
 		System.out.println();
 	}
@@ -193,6 +197,59 @@ public class MapReduce {
 				
 				System.out.println("Reducer " + (i+1) + "\tnodeNum:" + nodeNum + "\tStatus:" + statusMessage);
 			}
+		}
+	}
+	
+	static void getOutput() {
+		System.out.print("Enter Output Directory Name:");
+		
+		//get jobId from user
+		String outputDir;
+		Scanner in = new Scanner(System.in);
+		outputDir = in.nextLine();
+		
+		Socket socket = null;
+		ObjectInputStream ois = null;
+		ObjectOutputStream oos = null;
+		
+		/*Connect to JobTracker*/
+		try {
+			socket = new Socket(jobTrackerIP, jobTrackerPort);
+			oos = new ObjectOutputStream(socket.getOutputStream());
+			oos.flush();
+			ois = new ObjectInputStream(socket.getInputStream());
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
+		/*Get jobInfo from JobTracker*/
+		FileEntry outputEntry = null;
+		try {
+			oos.writeObject("GetOutput");
+			oos.writeObject(outputDir);
+			outputEntry = (FileEntry)ois.readObject();
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
+		if(outputEntry == null) {
+			System.out.println("Output Directory " + outputDir + " not found on the DFS!");
+			return;
+		}
+		
+		/*Iterate and print all task details*/
+		int numParts = outputEntry.getNumParts();
+		String outputFileName = outputEntry.getFileName();
+		
+		System.out.println("----------------");
+		System.out.println("Output Directory: " + outputFileName);
+		
+		for(int i=0; i<numParts; i++) {
+			int nodeNum = outputEntry.getEntry(i, 0);
+			String partPath = "./root/" + Integer.toString(nodeNum) + "/" +
+					outputFileName + Integer.toString(i+1);
+			System.out.println("File " + (i+1) + " path: " + partPath);
 		}
 	}
 

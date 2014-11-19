@@ -4,7 +4,7 @@ import java.net.*;
 import java.io.*;
 
 //class for file entries, stores splits and associated node info
-public class FileEntry {
+public class FileEntry implements Serializable {
 	String fileName;
 	int numParts; //partitions of a file 
 	int rFactor; //replica factor

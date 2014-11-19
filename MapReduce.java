@@ -178,7 +178,7 @@ public class MapReduce {
 		System.out.println("----------------");
 		System.out.println("Map Phase");
 		
-		if(mapList != null) {		
+		if(mapList != null && mapList.size()==numMappers) {		
 			for(int i=0; i<numMappers; i++) {
 				int nodeNum = mapList.get(i).getNodeNum();
 				String statusMessage = mapList.get(i).getStatusMessage(); 
@@ -190,7 +190,7 @@ public class MapReduce {
 		System.out.println("----------------");
 		System.out.println("Reduce Phase");
 		
-		if(reduceList != null) {
+		if(reduceList != null && reduceList.size()==numReducers) {
 			for(int i=0; i<numReducers; i++) {
 				int nodeNum = reduceList.get(i).getNodeNum();
 				String statusMessage = reduceList.get(i).getStatusMessage(); 
@@ -419,9 +419,9 @@ public class MapReduce {
 			String ack = (String)ois.readObject();
 			
 			if (ack.equals("NotDir")) {
-				System.out.println("Not a directory!");
+				System.out.println(inputDir + " is not a directory!");
 			} else if (ack.equals("NotExist")) {
-				System.out.println("No such directory exists!");
+				System.out.println(inputDir + " does not exist in the DFS!");
 			} else if (ack.equals("OutDuplicate")) {
 				System.out.println(outputDir + " already exists in the DFS. Try another name!");
 			} else if (ack.equals("AckDir")) {

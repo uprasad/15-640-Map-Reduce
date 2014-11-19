@@ -298,8 +298,6 @@ public class JobTracker implements Runnable {
 					oos.writeObject("NotExist");
 				} else {
 					valid = true;
-					oos.writeObject("AckDir");
-					System.out.println("Input directory for new job: " + inputDir);
 				}
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -320,6 +318,16 @@ public class JobTracker implements Runnable {
 				}
 			} catch(Exception e) {
 				e.printStackTrace();
+			}
+			
+			//send AckDir to accept Job/ valid is true
+			if(valid) {
+				try {
+					oos.writeObject("AckDir");
+				} catch(Exception e) {
+					e.printStackTrace();
+				}
+				System.out.println("Input directory for new job: " + inputDir);
 			}
 			
 			if (valid) { // If the job is valid
@@ -435,7 +443,7 @@ public class JobTracker implements Runnable {
 						}
 					}
 					
-					//TODO: send command to each reducer to merge files and start
+					
 					File[] files = new File[numMappers];
 					
 					//merge all reducer inputs in reduceNode
@@ -539,7 +547,7 @@ public class JobTracker implements Runnable {
 		}
 	}
 	
-	TaskTrackerInfo getTaskTrackerInfoFromNodeNum(int nodeNum) {
+	static TaskTrackerInfo getTaskTrackerInfoFromNodeNum(int nodeNum) {
 		TaskTrackerInfo ttiFound = null;
 		
 		Iterator<TaskTrackerInfo> ttiEnum = taskTrackerTable.values().iterator();
@@ -554,7 +562,7 @@ public class JobTracker implements Runnable {
 		return ttiFound;
 	}
 	
-	void startMapTask(int jobId, int partition, int nodeNum, String inputDir) {
+	static void startMapTask(int jobId, int partition, int nodeNum, String inputDir) {
 		TaskTrackerInfo ttiCur = getTaskTrackerInfoFromNodeNum(nodeNum);
 		if (ttiCur == null) {
 			System.out.println("Could not find task tracker!");
@@ -562,7 +570,7 @@ public class JobTracker implements Runnable {
 		}
 		
 		String taskIP = ttiCur.getIPAddress();
-		int taskPort = ttiCur.getServPort(); 
+		int taskPort = ttiCur.getServPort();
 		
 		Socket connection = null;
 		ObjectOutputStream oos = null;
@@ -603,7 +611,7 @@ public class JobTracker implements Runnable {
 		}
 	}
 	
-	void startReduceTask(int jobId, int numMappers, int reduceNum, int reduceNode, String inputDir) {
+	static void startReduceTask(int jobId, int numMappers, int reduceNum, int reduceNode, String inputDir) {
 		TaskTrackerInfo ttiCur = getTaskTrackerInfoFromNodeNum(reduceNode);
 		if (ttiCur == null) {
 			System.out.println("Could not find task tracker!");
@@ -653,10 +661,7 @@ public class JobTracker implements Runnable {
 		}
 	}
 	
-	/*
-	 * TODO: reducerScheduler
-	 */
-	int[] mapperScheduler(String inputDir, int numMappers, int jobID) {
+	static int[] mapperScheduler(String inputDir, int numMappers, int jobID) {
 		
 		int[] mapperToNode = new int[numMappers];
 		
@@ -691,7 +696,7 @@ public class JobTracker implements Runnable {
 		return mapperToNode;
 	}
 	
-	int[] reducerScheduler(String inputDir, int numReducers, int jobID) {
+	static int[] reducerScheduler(String inputDir, int numReducers, int jobID) {
 		
 		int[] reducerToNode = new int[numReducers];
 		
@@ -813,8 +818,66 @@ public class JobTracker implements Runnable {
 		}
 	}
 	
-	public static int numPart(File file) {
-		return (int)Math.ceil((file.length())/(1024*1024));
+	//Failure Handling for Tasks when TaskTracker fails
+	static void nodeFailureTolerance(int nodeNum) {
+		//Set of all Jobs in jobTable
+		Set<Integer> jobIds = jobTable.keySet();
+		
+		for(Integer jobId: jobIds){
+            Job jobEntry = jobTable.get(jobId);
+            
+            int numMappers = jobEntry.getNumMappers();
+            int numReducers = jobEntry.getNumReducers();
+            
+            String inputDir = jobEntry.getInputDir();
+            String outputDir = jobEntry.getOutputDir();
+            
+            for(int i=0; i<numMappers; i++) {
+            	int taskStatus = jobEntry.mapList.get(i).getStatus();
+            	int taskNode = jobEntry.mapList.get(i).getNodeNum();
+            	int taskAttempt = jobEntry.mapList.get(i).getAttempt();
+            	
+            	if(taskNode == nodeNum && taskAttempt<2) {
+            		if(taskStatus == 0 || taskStatus == 1) {
+            			System.out.println("Mapper " + (i+1) + " of jobID " + jobId
+            					+ " failed. Task restarting on another node!");
+            			
+            			//get node from mapperScheduler
+                		int[] mapperToNode = mapperScheduler(inputDir, 1, jobId);
+                		
+                		//change nodeNum and status in TaskDetails
+                		jobTable.get(jobId).mapList.get(i).changeNodeNum(mapperToNode[0]);
+                		jobTable.get(jobId).mapList.get(i).setStatus(4);
+                		
+                		//start Map Task
+                		startMapTask(jobId, i+1, mapperToNode[0], inputDir);
+            		}
+            	}
+            }
+            
+            for(int i=0; i<numReducers; i++) {
+            	int taskStatus = jobEntry.reduceList.get(i).getStatus();
+            	int taskNode = jobEntry.reduceList.get(i).getNodeNum();
+            	int taskAttempt = jobEntry.reduceList.get(i).getAttempt();
+            	
+            	if(taskNode == nodeNum && taskAttempt<2) {
+            		if(taskStatus == 0 || taskStatus == 1) {
+            			System.out.println("Reducer " + (i+1) + " of jobID " + jobId
+            					+ " failed. Task restarting on another node!");
+            			
+            			//get node from mapperScheduler
+                		int[] reducerToNode = reducerScheduler(inputDir, 1, jobId);
+                		
+                		//change nodeNum and status in TaskDetails
+                		jobTable.get(jobId).reduceList.get(i).changeNodeNum(reducerToNode[0]);
+                		jobTable.get(jobId).reduceList.get(i).setStatus(4);
+                		
+                		//start Map Task
+                		startReduceTask(jobId, numMappers, i+1, reducerToNode[0], inputDir);
+            		}
+            	}
+            }
+        }
 	}
 }
 
@@ -852,7 +915,6 @@ class PollClient implements Runnable {
 				
 				/* remove if node not responding*/
 				if (command == null) {
-					//System.out.println("Wut1");
 					//nodeNum to be removed
 					int nodeNum = JobTracker.taskTrackerTable.get(s).getNodeNum();
 					//remove files of node from FileSystem
@@ -860,6 +922,9 @@ class PollClient implements Runnable {
 					//remove node from TaskTrackerTable
 					JobTracker.taskTrackerTable.remove(s);
 					System.out.println("Node with nodeNum " + nodeNum + " has failed and has been removed");
+					
+					//TODO:ADD Fault Tolerance here
+					JobTracker.nodeFailureTolerance(nodeNum);
 				}
 				else {
 					System.out.println(command);

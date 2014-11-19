@@ -1,8 +1,7 @@
 import java.io.*;
 
-
 public class Map {
-	public static void main(String args[]) {
+	public static void main(String args[]) throws InterruptedException {
 		BufferedReader br = null;
 		BufferedWriter brout = null;
 		File fout = null;
@@ -23,6 +22,8 @@ public class Map {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
+		
+		Thread.sleep(15000);
 		
 		String line;
 		try {

@@ -418,7 +418,7 @@ public class JobTracker implements Runnable {
 					System.out.println(jobTable.get(jobId));
 					String inputDir = jobTable.get(jobId).getInputDir();
 					System.out.println("inputDir: " + inputDir);
-					int[] reducerToNode = mapperScheduler(inputDir, numReducers, jobId);
+					int[] reducerToNode = reducerScheduler(inputDir, numReducers, jobId);
 					
 					int inputDirLength = fileSystem.getFileLength(inputDir);
 					
@@ -654,7 +654,7 @@ public class JobTracker implements Runnable {
 	}
 	
 	/*
-	 * TODO: change name to taskScheduler
+	 * TODO: reducerScheduler
 	 */
 	int[] mapperScheduler(String inputDir, int numMappers, int jobID) {
 		
@@ -689,6 +689,37 @@ public class JobTracker implements Runnable {
 		}
 		
 		return mapperToNode;
+	}
+	
+	int[] reducerScheduler(String inputDir, int numReducers, int jobID) {
+		
+		int[] reducerToNode = new int[numReducers];
+		
+		for (int i=0; i<numReducers; i++) {
+			// Priority queue for scheduler
+			Comparator<TaskTrackerInfo> ttiComparator = new TaskTrackerInfoComparator();
+			PriorityQueue<TaskTrackerInfo> ttiQueue = new PriorityQueue<TaskTrackerInfo>(10, ttiComparator);
+			
+			// Put all the task trackers into the priority queue
+			Iterator<TaskTrackerInfo> ttiEnum = taskTrackerTable.values().iterator();
+			while (ttiEnum.hasNext()) {
+				TaskTrackerInfo tti = ttiEnum.next();
+				//add only if it has the partition of the inputDir
+				ttiQueue.add(tti);
+			}
+			
+			//get inputDir's size
+			int inputDirLength = fileSystem.getFileLength(inputDir);
+			
+			//add the TaskTracker with the least load
+			TaskTrackerInfo ttiMin = ttiQueue.poll();
+			ttiMin.addLoad((double)inputDirLength/numReducers);
+			//ttiMin.addLoad(jobTable.get(jobId).mapList.get(i).getLoad());
+			reducerToNode[i] = ttiMin.getNodeNum();
+			ttiQueue.add(ttiMin);
+		}
+		
+		return reducerToNode;
 	}
 	
 	void extractJAR(int jobId) {

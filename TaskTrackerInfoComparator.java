@@ -3,6 +3,10 @@ import java.util.*;
 import java.net.*;
 import java.io.*;
 
+/*
+ * An implementation of the comparator interface
+ * To use to compare two TaskTrackerInfo objects in a PriorityQueue
+ */
 public class TaskTrackerInfoComparator implements Comparator<TaskTrackerInfo> {
 	@Override
 	public int compare(TaskTrackerInfo x, TaskTrackerInfo y) {

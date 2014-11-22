@@ -28,7 +28,10 @@ public class TaskTracker implements Runnable {
 			System.exit(1);
 		}
 		
+		// the first argument is the IP address of the JobTracker
 		jobTrackerIP = args[0];
+		
+		// the second argument is the port number of the JobTracker
 		jobTrackerPort = Integer.parseInt(args[1]);
 		
 		/* Connect to JobTracker*/
@@ -52,11 +55,13 @@ public class TaskTracker implements Runnable {
 			/*Read polling port given by JobTracker*/
 			pollPort = (Integer)ois.readObject();
 			
+			// Error in registering with the JobTracker
 			if (pollPort == null) {
 				System.out.println("TaskTracker has not been recognized. Shame on your family.");
 				System.exit(1);
 			}
 			
+			// Get the listening port (servPort) and the unique node number of this TaskTracker
 			servPort = (Integer)ois.readObject();
 			nodeNumber = (Integer)ois.readObject();
 			
@@ -131,6 +136,13 @@ public class TaskTracker implements Runnable {
 			e.printStackTrace();
 		}
 		
+		/*
+		 * Handles the command to copy a file into the TaskTracker's node
+		 * 
+		 * The TaskTracker reads the name of the file to be read.
+		 * It then proceeds to read the file 1KB at a time, and writes
+		 * it onto disk.
+		 */
 		if (command.equals("CopyFile")) {
 			String fileName = null;
 			try {
@@ -148,6 +160,7 @@ public class TaskTracker implements Runnable {
 			    
 			    int bytesRead;
 			    
+			    // reads the file 1KB at a time, and writes it to disk
 			    while((bytesRead = is.read(bytearray)) > 0 ) {
 			    	bos.write(bytearray, 0, bytesRead);
 			    }
@@ -157,7 +170,17 @@ public class TaskTracker implements Runnable {
 			} catch(Exception e) {
 				e.printStackTrace();
 			}
-		} else if (command.equals("RunMap")) {
+		}
+		/*
+		 * Handles the command to run a Map task
+		 * 
+		 * The TaskTracker reads other details from the JobTracker
+		 * like the partition number of the input file it has to work on, 
+		 * the input directory and the unique ID of the job. It then constructs
+		 * an output directory string and a Map task command, and spawns a new
+		 * thread to run the Map task using the Map.class file.
+		 */
+		else if (command.equals("RunMap")) {
 			Integer partition = null;
 			Integer jobId = null;
 			Integer numReducers = null;
@@ -171,32 +194,52 @@ public class TaskTracker implements Runnable {
 				e.printStackTrace();
 			}
 			
+			// construct the output directory
 			String outputDir = "./root/" + Integer.toString(nodeNumber) + 
 					"/" + inputDir + "_" + Integer.toString(jobId) + 
 					"_" + Integer.toString(partition) + "out";
 			
+			// construct the input directory
 			inputDir = "./root/" + Integer.toString(nodeNumber) + 
 					"/" + inputDir + Integer.toString(partition);
 			
+			// construct the directory where the Map.class file is
 			String mapDir = "root/" + Integer.toString(nodeNumber) + 
 					"/job" + Integer.toString(jobId);
+			
+			// construct the map command
 			String mapCommand = "java -cp " + mapDir + "/ " + 
 					"Map " + inputDir + " " + outputDir;
+			
+			// finally, run the map task on a new thread
 			RunProcess mapProcess = new RunProcess(mapCommand, jobId, partition, numReducers, true);
 			Thread t = new Thread(mapProcess);
 			t.start();
 			
+			// send the JobTracker acknowledgement that the task has been started
 			try {
 				oos.writeObject("MapDone"); // TODO find out when to say MapDone
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
-		} else if (command.equals("RunReduce")) {
+		}
+		/*
+		 * Handles the command to run a Reduce task
+		 * 
+		 * The TaskTracker takes a few more inputs like the unique ID
+		 * for the job, the input and output directories. Then, similar to the
+		 * Map phase of the job, it constructs an input directory, an output
+		 * directory and a reduce command. Finally, the TaskTracker proceeds to
+		 * run the reduce task in a new thread.
+		 */
+		else if (command.equals("RunReduce")) {
 			Integer jobId = null;
 			Integer numMappers = null;
 			Integer reduceNum = null;
 			String inputDir = null;
 			String outputDir = null;
+			
+			// read the necessary details from the JobTracker
 			try {
 				jobId = (Integer)ois.readObject();
 				numMappers = (Integer)ois.readObject();
@@ -207,24 +250,33 @@ public class TaskTracker implements Runnable {
 				e.printStackTrace();
 			}
 			
+			// construct the input directory path
 			inputDir = "./root/" + Integer.toString(nodeNumber) + 
 					"/" + inputDir + "_" + Integer.toString(jobId) + 
 					"red" + Integer.toString(reduceNum);
 			
+			// construct the directory where the input is
 			String reduceDir = "root/" + Integer.toString(nodeNumber) + 
 					"/job" + Integer.toString(jobId);
 			
+			// construct the output directory
 			outputDir = "./root/" + Integer.toString(nodeNumber) + "/" + 
 					outputDir + Integer.toString(reduceNum);
 			
 			System.out.println("************" + inputDir);
+			
+			// construct the reduce command
 			String reduceCommand = "java -cp " + reduceDir + "/ " + 
 					"Reduce " + inputDir + " " + outputDir;
 			System.out.println("************" + outputDir);
+			
+			// finally, start the reduce task
 			RunProcess reduceProcess = new RunProcess(reduceCommand, jobId, reduceNum, 0, false);
 			Thread t = new Thread(reduceProcess);
 			t.start();
 			
+			// send a message to the JobTracker to acknowledge successful
+			// start of the reduce task
 			try {
 				oos.writeObject("ReduceDone"); // TODO find out when to say MapDone
 			} catch (Exception e) {
@@ -234,18 +286,45 @@ public class TaskTracker implements Runnable {
 	}
 }
 
+/*
+ * The RunProcess class contains the method needed to start and run
+ * a new process by passing a command string as input
+ */
 class RunProcess implements Runnable {
+	
+	// the command to be run
 	String command = null;
+	
+	// the unique job ID
 	int jobId = 0;
+	
+	// the partition of the input on which the command is run
 	int partition = 0;
+	
+	// the number of reducers
 	int numReducers = 0;
+	
+	// a true/false value to distinguish between the map and reduce phases
 	boolean isMap;
 	
+	/*
+	 * METHOD: combiner
+	 * INPUT: a file object and the number of reducers
+	 * OUTPUT: void
+	 * 
+	 * The method is for post-processing after the map phase. The
+	 * output of the map phase is all combined into "numReducers" number
+	 * of files, by using a hash function on the key values in the map 
+	 * output modulo numReducers.
+	 */
 	void combiner(File file, int numReducers) {
+		
+		// create as many files as the number of reducers
 		File[] outFiles = new File[numReducers];
 		FileOutputStream[] outFos = new FileOutputStream[numReducers];
 		BufferedWriter[] outBw = new BufferedWriter[numReducers];
 		
+		// initialize the file streams
 		try {
 			for (int i=0; i<numReducers; i++) {
 				outFiles[i] = new File(file.getAbsolutePath() + Integer.toString(i+1));
@@ -263,6 +342,11 @@ class RunProcess implements Runnable {
 			e.printStackTrace();
 		}
 		
+		/*
+		 * get each key from the map output file, and use the hashCode()
+		 * method modulo the number of reducers and write it out into 
+		 * the file indexed by that value
+		 */
 		try {
 			String line;
 			String key;
@@ -281,9 +365,19 @@ class RunProcess implements Runnable {
 			e.printStackTrace();
 		}
 		
+		/*
+		 * After the combiner is done, we have numReducers files,
+		 * each of which contains a part of the output of the map phase.
+		 * 
+		 * In the reduce phase, each reducer pulls that part of the file which
+		 * is indexed by the reducer number. The combiner stage just prepares
+		 * the output of the map task to be pulled by the reducers 
+		 */
+		
 		System.out.println("Combiner done");
 	}
 	
+	/* the constructor for the class */
 	RunProcess(String command, int jobId, int partition, int numReducers, boolean isMap) {
 		this.command = command;
 		this.jobId = jobId;
@@ -292,6 +386,7 @@ class RunProcess implements Runnable {
 		this.isMap = isMap;
 	}
 	
+	/* printing the output for debugging */
 	private static void printLines(String name, InputStream ins) throws Exception {
 	    String line = null;
 	    BufferedReader in = new BufferedReader(
@@ -301,14 +396,28 @@ class RunProcess implements Runnable {
 	    }
 	}
 	
+	/*
+	 * METHOD: runProcess
+	 * INPUT: the command that is to be run
+	 * OUTPUT: void
+	 * 
+	 * The runProcess method takes a String that is the command to be
+	 * executed. Once it executes the program, depending on if it is a 
+	 * Map or a Reduce task, it sends an appropriate result.
+	 */
 	void runProcess(String command) { 
 		try {
 			System.out.println(command);
+			
+			// Execute the command given by the "command" String
 			Process pro = Runtime.getRuntime().exec(command);
+			
+			// print the debugging info
 			printLines(command + " stdout:", pro.getErrorStream());
 			pro.waitFor();
 			System.out.println(command + " exitValue() " + pro.exitValue());
 			
+			// If the task is a map task
 			if(this.isMap) {
 				if (pro.exitValue() == 0) {
 					String fileName = command.split(" ")[command.split(" ").length - 1];
@@ -317,7 +426,9 @@ class RunProcess implements Runnable {
 				}
 				
 				sendMapResult(pro.exitValue());
-			} else {
+			}
+			// if the task is a reduce task
+			else {
 				sendReduceResult(pro.exitValue());
 			}
 			
@@ -326,6 +437,9 @@ class RunProcess implements Runnable {
 		}
 	}
 	
+	/*
+	 * Sends the result of the map task to the JobTracker
+	 */
 	private void sendMapResult(int exitValue) {
 		Socket connection = null;
 		ObjectOutputStream oos = null;
@@ -348,6 +462,9 @@ class RunProcess implements Runnable {
 		}
 	}
 	
+	/*
+	 * Sends the result of the reduce task to the jobtracker
+	 */
 	private void sendReduceResult(int exitValue) {
 		Socket connection = null;
 		ObjectOutputStream oos = null;
@@ -374,7 +491,10 @@ class RunProcess implements Runnable {
 		runProcess(command);
 	}
 }
-
+/*
+ * This class runs a loop that listens to incoming poll
+ * requests from the PollClient class in the JobTracker
+ */
 class PollServer implements Runnable {
 	public void run() {
 		int port = TaskTracker.pollPort;

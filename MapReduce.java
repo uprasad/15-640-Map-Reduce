@@ -9,6 +9,7 @@ class UserInput implements Runnable {
 	public void run() {
 		int choice = 0;
 		do {
+			// display a menu
 			MapReduce.showMenu();
 			Scanner inputScanner = new Scanner(System.in);
 			
@@ -19,6 +20,7 @@ class UserInput implements Runnable {
 				continue;
 			}
 			
+			// check what the choice is and call the appropriate method
 			switch(choice) {
 			case 0:
 				System.exit(0);
@@ -76,15 +78,16 @@ public class MapReduce {
 			System.exit(1);
 		}
 		
+		// the first argument is the JobTracker's listening IP address
 		jobTrackerIP = args[0];
+		
+		// the second argument is the JobTracker's listening port
 		jobTrackerPort = Integer.parseInt(args[1]);
 		
 		/*Start UserInput Thread*/
 		Runnable userRunnable = new UserInput();
 		Thread userThread = new Thread(userRunnable);
 		userThread.start();
-		
-		// Do other tasks here...
 	}
 	
 	/*Requests the JobTracker for list of data nodes*/
@@ -121,6 +124,7 @@ public class MapReduce {
 		}
 	}
 	
+	/* Requests information about the job from the JobTracker */
 	static void jobInfo() {
 		System.out.print("Enter jobID:");
 		
@@ -160,6 +164,7 @@ public class MapReduce {
 			e.printStackTrace();
 		}
 		
+		// invalid job ID
 		if(jobInfo == null) {
 			System.out.println("Job with jobID " + jobId + " not found!");
 			return;
@@ -178,6 +183,7 @@ public class MapReduce {
 		System.out.println("----------------");
 		System.out.println("Map Phase");
 		
+		// print details about the tasks running in the map phase
 		if(mapList != null && mapList.size()==numMappers) {		
 			for(int i=0; i<numMappers; i++) {
 				int nodeNum = mapList.get(i).getNodeNum();
@@ -190,6 +196,7 @@ public class MapReduce {
 		System.out.println("----------------");
 		System.out.println("Reduce Phase");
 		
+		// print details about the tasks running in the reduce phase
 		if(reduceList != null && reduceList.size()==numReducers) {
 			for(int i=0; i<numReducers; i++) {
 				int nodeNum = reduceList.get(i).getNodeNum();
@@ -200,6 +207,10 @@ public class MapReduce {
 		}
 	}
 	
+	/* 
+	 * Gets the relative paths of all the files in the output directory
+	 * supplied by the user
+	 */
 	static void getOutput() {
 		System.out.print("Enter Output Directory Name:");
 		
@@ -233,6 +244,7 @@ public class MapReduce {
 			e.printStackTrace();
 		}
 		
+		// output directory not found
 		if(outputEntry == null) {
 			System.out.println("Output Directory " + outputDir + " not found on the DFS!");
 			return;
@@ -253,9 +265,14 @@ public class MapReduce {
 		}
 	}
 
+	/* 
+	 * Request the JobTracker to copy the directory given by the user
+	 * into the DFS
+	 */
 	static void copyData() {
 		System.out.print("Enter source directory:");
 		
+		// get the source directory from the user
 		String src;
 		Scanner in = new Scanner(System.in);
 		src = in.nextLine();
@@ -274,6 +291,7 @@ public class MapReduce {
                 e.printStackTrace();
         }
 
+        // sends the request to the JobTracker for a copy
 		try {
 			oos.writeObject("copy");
 			oos.writeObject(src);			
@@ -293,9 +311,14 @@ public class MapReduce {
 		}
 	}
 	
+	/* 
+	 * Sends a request to the JobTracker to delete a particular
+	 * directory from the DFS.
+	 */
 	static void deleteData() {
 		System.out.print("Enter directory:");
 		
+		// get the directory to be deleted from the user
 		String src;
 		Scanner in = new Scanner(System.in);
 		src = in.nextLine();
@@ -317,6 +340,7 @@ public class MapReduce {
                 e.printStackTrace();
         }
 
+        // send the JobTracker the request to delete the directory
 		try {
 			oos.writeObject("delete");
 			oos.writeObject(src);	
@@ -332,9 +356,13 @@ public class MapReduce {
 		}
 	}
 	
+	/*
+	 * Request the JobTracker to start a new job
+	 */
 	static void startNewJob() {
 		System.out.println("Enter config file path");
 		
+		// get config file path from user
 		String configPath = null;
 		Scanner in = new Scanner(System.in);
 		configPath = in.nextLine();
@@ -411,6 +439,7 @@ public class MapReduce {
                 e.printStackTrace();
         }
         
+        // ask JobTracker to start a new job
         try {
 			oos.writeObject("NewJob");
 			oos.writeObject(inputDir);

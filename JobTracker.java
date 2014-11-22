@@ -11,6 +11,7 @@ public class JobTracker implements Runnable {
 	
 	//seedPort for Polling
 	static int seedPort = 9000;
+	
 	//taskSeedPort is TaskTracker's servPort
 	static int taskSeedPort = 12000;
 	
@@ -42,20 +43,24 @@ public class JobTracker implements Runnable {
 			System.exit(1);
 		}
 		
-		
+		// The first argument should be the port number of the Job Tracker server
 		int jobTrackerPort = Integer.parseInt(args[0]);
 		
 		String jobTrackerIP = null;
+		// Get Job Tracker IP address
 		try {
 			jobTrackerIP = InetAddress.getLocalHost().getHostAddress().toString();
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
 		
+		// Initialize File System
 		fileSystem = new FileSystem(jobTrackerIP, jobTrackerPort);
 		
+		/*
+		 * Create a new ServerSocket to listen to incoming connections 
+		 */
 		ServerSocket jobTrackerSocket = null;
-		
 		try {
 			jobTrackerSocket = new ServerSocket(jobTrackerPort);
 		} catch (Exception e) {
@@ -80,7 +85,7 @@ public class JobTracker implements Runnable {
 			
 			Thread jobTrackerThread = null;
 
-			/*Instantiate a new Thread for listening to connections*/		
+			/*Start a new Thread for each accepted connection*/		
 			try {
 				JobTracker jobTrackerRunnable = new JobTracker(connection);
 				jobTrackerThread = new Thread(jobTrackerRunnable);
@@ -95,7 +100,7 @@ public class JobTracker implements Runnable {
 	
 	/* Thread for handling requests from MapReduce and TaskTracker(s)*/
 	public void run() {
-		//input and output streams for newConnection
+		//Initialize input and output streams for the connection
 		ObjectInputStream ois = null;
 		ObjectOutputStream oos = null;
 		
@@ -110,14 +115,25 @@ public class JobTracker implements Runnable {
 		
 		String command = null;
 		
-		/* Read Request*/
+		/* Read Request */
 		try {
 			command = (String)ois.readObject();
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
 		
-		/* New TaskTracker*/
+		/*
+		 * Handle the connection of a new Task Tracker
+		 * 
+		 * This block of code stores the details of the new connection
+		 * in a TaskTrackerInfo object and adds this object to the
+		 * taskTrackerTable, a table of all the task trackers in
+		 * the cluster.
+		 * 
+		 * Additionally, the JobTracker also sends the unique ID,
+		 * the polling port (we check whether the TaskTrackers are alive
+		 * by polling.
+		 */
 		if (command.equals("NewTaskTracker")) {
 			//add TaskTracker to the taskTrackerTable
 			TaskTrackerInfo taskTrackerInfo = new TaskTrackerInfo(newConnection.getInetAddress().getHostAddress(), seedPort, taskSeedPort, nodeNum);
@@ -137,11 +153,19 @@ public class JobTracker implements Runnable {
 			System.out.println("JobTracker has added a new TaskTracker " + 
 					newConnection.getInetAddress().toString());
 
-			//add node to FileSystem
+			// add node to FileSystem (refer to method definition for details)
 			fileSystem.addNode(taskTrackerInfo);
 
 			nodeNum++;
-		} else if (command.equals("ListTaskTrackers")) {
+		}
+		/*
+		 * Handle the request for a list of the Task Trackers
+		 * 
+		 * When the application programmer requests a list of the
+		 * Task Trackers, traverse the Task Tracker table and return the
+		 * Task Tracker Info in list form
+		 */
+		else if (command.equals("ListTaskTrackers")) {
 			/* send a List TaskTracker(s) to MapReduce*/
 			ArrayList<TaskTrackerInfo> taskTrackerInfo = 
 					new ArrayList<TaskTrackerInfo>(taskTrackerTable.values());
@@ -152,7 +176,15 @@ public class JobTracker implements Runnable {
 				e.printStackTrace();
 			}
 			System.out.println("JobTracker replied to ListTaskTracker.");
-		} else if (command.equals("JobInfo")) {
+		}
+		/*
+		 * Handle request for information about a job
+		 * 
+		 * Given a job ID, this block of code returns the list of
+		 * mappers and reducers running on the clusters at that point 
+		 * in time.
+		 */
+		else if (command.equals("JobInfo")) {
 			Integer jobId = null;
 			try {
 				jobId = (Integer)ois.readObject();
@@ -170,7 +202,14 @@ public class JobTracker implements Runnable {
 				e.printStackTrace();
 			}
 			System.out.println("JobTracker replied to JobInfo.");
-		} else if (command.equals("GetOutput")) {
+		}
+		/*
+		 * Handle the request for the output files path in the DFS
+		 * 
+		 * This block of code returns the relative paths of the 
+		 * output files, once the Map-Reduce job is done.
+		 */
+		else if (command.equals("GetOutput")) {
 			String outputDir = null;
 			try {
 				outputDir = (String)ois.readObject();
@@ -194,7 +233,15 @@ public class JobTracker implements Runnable {
 				e.printStackTrace();
 			}
 			System.out.println("JobTracker replied to GetOutput.");
-		} else if (command.equals("copy")) {
+		}
+		/*
+		 * Handle the request to copy data into the DFS
+		 * 
+		 * This block of code takes a source directory in the local file
+		 * system as input and copies the contents of that directory into the DFS,
+		 * so that it can later be accessed by any of the Task Trackers.
+		 */
+		else if (command.equals("copy")) {
 			/* copy data into DFS*/
 			
 			//Source Directory src
@@ -209,7 +256,7 @@ public class JobTracker implements Runnable {
 			int addStatus = fileSystem.addFile(src);
 
 			try {
-				/*ADD checks if dest dir exists is Dist. FILESYSTEM here*/
+				/*ADD checks if dest dir exists in DFS here*/
 				if (addStatus == 1) {
 					oos.writeObject("notFound");
 					System.out.println("Source directory " + src + "not found");	
@@ -224,7 +271,11 @@ public class JobTracker implements Runnable {
 			} catch (Exception e) {
 				e.printStackTrace();
 			} 
-		} else if (command.equals("copyFile")) {
+		}
+		/*
+		 * ?
+		 */
+		else if (command.equals("copyFile")) {
 			String fileName = null;
 			try {
 				//copy file to node
@@ -250,7 +301,18 @@ public class JobTracker implements Runnable {
 			} catch(Exception e) {
 				e.printStackTrace();
 			}
-		} else if (command.equals("delete")) {
+		}
+		/*
+		 * Handle a request to delete a folder from the DFS
+		 * 
+		 * This block of code takes as input a directory name, checks if
+		 * that directory exists in the DFS, and deletes it.
+		 * 
+		 * This command MUST be sent to the JobTracker if any directory is
+		 * to be overwritten i.e. the directory must first be deleted, and
+		 * then the new directory with the same name copied in later.
+		 */
+		else if (command.equals("delete")) {
 			/* delete data from DFS*/
 			
 			//Source Directory src
@@ -265,7 +327,7 @@ public class JobTracker implements Runnable {
 			int deleteStatus = fileSystem.deleteFile(src);
 
 			try {
-				/*ADD check if dest dir exists is Dist. FILESYSTEM here*/
+				/*ADD check if dest dir exists in DFS here*/
 				if (deleteStatus == 1) {
 					oos.writeObject("notFound");
 					System.out.println("Source directory " + src + " not found");	
@@ -276,7 +338,19 @@ public class JobTracker implements Runnable {
 			} catch (Exception e) {
 				e.printStackTrace();
 			} 
-		} else if (command.equals("NewJob")) {
+		}
+		/*
+		 * Handles the request to start a new job on the cluster
+		 * 
+		 * The JobTracker assigns a unique ID to the requested job, reads
+		 * the other details about the job from the application programmer
+		 * directly or using the configuration files.
+		 * 
+		 * The JobTracker then extracts the input into a special directory.
+		 * It then schedules and starts the Map phase, followed by the
+		 * scheduling and running of the Reduce phase. 
+		 */
+		else if (command.equals("NewJob")) {
 			
 			jobId++;
 			String inputDir = null;
@@ -320,7 +394,7 @@ public class JobTracker implements Runnable {
 				e.printStackTrace();
 			}
 			
-			//send AckDir to accept Job/ valid is true
+			// send AckDir to acknowledge validity of input and output directories
 			if(valid) {
 				try {
 					oos.writeObject("AckDir");
@@ -332,10 +406,10 @@ public class JobTracker implements Runnable {
 			
 			if (valid) { // If the job is valid
 				int numMappers = fileSystem.getNumParts(inputDir);
-				// Extract the .jar
+				// Extract the .jar containing the Mapper and Reducer programs
 				extractJAR(jobId);
 				
-				// creat new job and add to jobTable
+				// create new job and add to jobTable
 				Job newJob = new Job(numMappers, numReducers, jobId, inputDir, outputDir);
 				jobTable.put(jobId, newJob);
 				
@@ -351,23 +425,47 @@ public class JobTracker implements Runnable {
 				
 				int inputDirLength = fileSystem.getFileLength(inputDir);
 				
-				for (int i=0; i<numMappers; i++) { // loop over mappers, start them
+				// loop over mappers, start them
+				for (int i=0; i<numMappers; i++) { 
+					// add the job to the list of Map tasks
 					jobTable.get(jobId).mapList.add(i, new TaskDetails(i+1, mapperToNode[i], 
 							(double)inputDirLength/numMappers));
 					
+					// as the filesystem to move the input partitions to the 
+					// respective nodes
 					fileSystem.sendPartitionToNode(inputDir, i+1, mapperToNode[i], jobId);
 					
 					File mapFile = new File(jarFolder + File.separator + "Map.class");
 					String dirName = "job" + Integer.toString(jobId);
 					
+					// send the Map.class file to the particular TaskTracker node's folder
 					fileSystem.sendToNodeFolder(mapperToNode[i], mapFile, dirName);
+					
+					// Now that the input partitions and the Map.class files
+					// are in the TaskTracker's execution environment, 
+					// start the map task
 					startMapTask(jobId, i+1, mapperToNode[i], inputDir);
 				}
 			}
-		} else if (command.equals("MapResult")) {
+		}
+		/*
+		 * This message is sent by each mapper when a map phase is completed.
+		 * 
+		 * The JobTracker takes in the job ID of the job, the partition on which
+		 * the map task has been completed, and the exit value of the map task.
+		 * 
+		 * It then checks the exit value to see if there were any errors in the 
+		 * task. In case of errors, it informs the user of the exit value. Otherwise,
+		 * it increments the count for the number of completed map tasks.
+		 * 
+		 * Once the number of completed map tasks reaches the total number of mappers
+		 * for the particular job, it starts the Reduce phase of the job.
+		 */
+		else if (command.equals("MapResult")) {
 			Integer jobId = null;
 			Integer partition = null;
 			Integer exitValue = null;
+			// read details of the completed map task
 			try {
 				jobId = (Integer)ois.readObject();
 				partition = (Integer)ois.readObject();
@@ -376,6 +474,7 @@ public class JobTracker implements Runnable {
 				e.printStackTrace();
 			}
 			
+			// if map task was not successful
 			if (exitValue != 0) {
 				System.out.println("Map task " + partition + " of jobId " + jobId + " failed.");
 				
@@ -383,14 +482,17 @@ public class JobTracker implements Runnable {
 				jobTable.get(jobId).mapList.get(partition-1).setStatus(3);
 				int nodeNum = jobTable.get(jobId).mapList.get(partition-1).getNodeNum();
 				
-				//update TaskTracker load
+				// update TaskTracker load
+				// load = size of the inputs on the task tracker
 				TaskTrackerInfo ti = getTaskTrackerInfoFromNodeNum(nodeNum);
 				double taskLoad = jobTable.get(jobId).mapList.get(partition-1).getLoad();
 				double oldLoad = ti.getLoad();
 				ti.removeLoad(taskLoad);
 				double newLoad = getTaskTrackerInfoFromNodeNum(nodeNum).getLoad();
 				System.out.println("Node " + nodeNum + " => Load: " + oldLoad + " to " + newLoad);
-			} else {
+			}
+			// if the map tasks were successful, check if all map tasks are done
+			else {
 				System.out.println("Map task " + partition + " of jobId " + jobId + " DONE.");
 				
 				//update jobList
@@ -484,7 +586,21 @@ public class JobTracker implements Runnable {
 					
 				}
 			}
-		} else if (command.equals("ReduceResult")) {
+		} 
+		/*
+		 * This message is sent by each reducer when a reduce task is completed.
+		 * 
+		 * The JobTracker takes in the job ID of the job, the partition on which
+		 * the reduce task has been completed, and the exit value of the reduce task.
+		 * 
+		 * It then checks the exit value to see if there were any errors in the 
+		 * task. In case of errors, it informs the user of the exit value. Otherwise,
+		 * it increments the count for the number of completed reduce tasks.
+		 * 
+		 * Once the number of completed reduce tasks reaches the total number of reducers
+		 * for the particular job, the job is done!
+		 */
+		else if (command.equals("ReduceResult")) {
 			Integer jobId = null;
 			Integer partition = null;
 			Integer exitValue = null;
@@ -547,6 +663,17 @@ public class JobTracker implements Runnable {
 		}
 	}
 	
+	/*
+	 * METHOD: getTaskTrackerInfoFromNodeNum
+	 * INPUT: unique node number
+	 * OUTPUT: information about the TaskTracker pertaining to that node number
+	 * 			or null if not found.
+	 * 
+	 * The table of task trackers is indexed by the socket with which the 
+	 * task tracker communicates. So this method iterates over all the task trackers
+	 * in the table, and returns all the information about the one whose node
+	 * number is supplied as input.
+	 */
 	static TaskTrackerInfo getTaskTrackerInfoFromNodeNum(int nodeNum) {
 		TaskTrackerInfo ttiFound = null;
 		
@@ -562,16 +689,35 @@ public class JobTracker implements Runnable {
 		return ttiFound;
 	}
 	
+	/*
+	 * METHOD: startMapTask
+	 * INPUT: the job ID, the input partition number, the node number 
+	 * 			and the input directory
+	 * OUTPUT: void
+	 * 
+	 * This method uses the node number to get the IP address and listening port
+	 * of the task tracker. Then the JobTracker send that task tracker a command
+	 * to run a map task on the partition of the input given by "partition" and 
+	 * "inputDir" respectively.
+	 * 
+	 * It then waits for an acknowledgement from the task tracker to ensure that
+	 * the task has been started.
+	 */
 	static void startMapTask(int jobId, int partition, int nodeNum, String inputDir) {
+		
+		// searches for the task tracker associated with unique
+		// node number "nodeNum"
 		TaskTrackerInfo ttiCur = getTaskTrackerInfoFromNodeNum(nodeNum);
 		if (ttiCur == null) {
 			System.out.println("Could not find task tracker!");
 			return;
 		}
 		
+		// get the IP address and port number of the task tracker
 		String taskIP = ttiCur.getIPAddress();
 		int taskPort = ttiCur.getServPort();
 		
+		// create a connection the the task tracker
 		Socket connection = null;
 		ObjectOutputStream oos = null;
 		ObjectInputStream ois = null;
@@ -588,39 +734,63 @@ public class JobTracker implements Runnable {
 		//get numReducers
 		int numReducers = jobTable.get(jobId).getNumReducers();
 		
-		//send RunMap to TaskTracker on nodeNum
+		// send the task tracker a command to run a map task
 		String command = null;
 		try {
 			oos.writeObject("RunMap");
+			
+			// supply it with the partition on which it has to run the map task
 			oos.writeObject(partition);
 			oos.writeObject(jobId);
 			oos.writeObject(numReducers);
 			oos.writeObject(inputDir);
 			
+			// wait for a response indicating that it has started the task
 			command = (String)ois.readObject();
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
 		
+		// if it has started the task
 		if (command.equals("MapDone")) {
-			System.out.println("Map has been finished");
+			System.out.println("Map has been started");
 			jobTable.get(jobId).mapList.get(partition-1).setStatus(1);
-		} else {
+		}
+		// if there was an error starting the task
+		else {
 			System.out.println("ERROR in running Map phase");
 			jobTable.get(jobId).mapList.get(partition-1).setStatus(3);
 		}
 	}
 	
+	/*
+	 * METHOD: startReduceTask
+	 * INPUT: unique job ID, the node number associated with the task tracker 
+	 * 			on which we want to run the reduce job, input directory
+	 * OUTPUT: void
+	 * 
+	 * Similar to the method to start a map task, this method uses the unique 
+	 * node number to find the details of the task tracker pertaining to that
+	 * node number, such as the listening IP address and port number.
+	 * 
+	 * The JobTracker then creates a connection to the task tracker, sends it
+	 * any other information it needs to start a reduce task, and waits for 
+	 * acknowledgement.
+	 */
 	static void startReduceTask(int jobId, int numMappers, int reduceNum, int reduceNode, String inputDir) {
+		
+		// get task tracker details from the node number.
 		TaskTrackerInfo ttiCur = getTaskTrackerInfoFromNodeNum(reduceNode);
 		if (ttiCur == null) {
 			System.out.println("Could not find task tracker!");
 			return;
 		}
 		
+		// get IP address and port number
 		String taskIP = ttiCur.getIPAddress();
 		int taskPort = ttiCur.getServPort(); 
 		
+		// create a connection to the task tracker
 		Socket connection = null;
 		ObjectOutputStream oos = null;
 		ObjectInputStream ois = null;
@@ -634,9 +804,11 @@ public class JobTracker implements Runnable {
 			e.printStackTrace();
 		}
 		
-		//get outputDir
+		// get outputDir
 		String outputDir = jobTable.get(jobId).getOutputDir();
 		
+		// send the command to run the reduce task,
+		// along with any other information needed.
 		String command = null;
 		try {
 			oos.writeObject("RunReduce");
@@ -647,20 +819,36 @@ public class JobTracker implements Runnable {
 			oos.writeObject(inputDir);
 			oos.writeObject(outputDir);
 			
+			// wait for acknowledgement that the reduce task has been started
 			command = (String)ois.readObject();
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
 		
+		// if the reduce task has been started
 		if (command.equals("ReduceDone")) {
 			System.out.println("Reduce has been finished");
 			jobTable.get(jobId).reduceList.get(reduceNum-1).setStatus(1);
-		} else {
+		}
+		// if there was a problem in starting the reduce task
+		else {
 			System.out.println("ERROR in running Reduce phase");
 			jobTable.get(jobId).reduceList.get(reduceNum-1).setStatus(3);
 		}
 	}
 	
+	/*
+	 * METHOD: mapperScheduler
+	 * INPUT: the input directory, the number of mappers and the unique job ID
+	 * OUTPUT: an array that is a mapping from an integer to a node number, with
+	 * 			one mapping for each Map task
+	 * 
+	 * This method creates a min-priority-queue with comparisons done based on
+	 * the amount of load on each TaskTracker. The mapping is then created by
+	 * repeatedly picking the min-element from the priority queue IF it has the partition
+	 * of the input data on it. This way, we choose those TaskTrackers to be the mappers 
+	 * that have the least load on them, and to which the data has already been sent. 
+	 */
 	static int[] mapperScheduler(String inputDir, int numMappers, int jobID) {
 		
 		int[] mapperToNode = new int[numMappers];
@@ -696,6 +884,20 @@ public class JobTracker implements Runnable {
 		return mapperToNode;
 	}
 	
+	/*
+	 * METHOD: reducerScheduler
+	 * INPUT: the input directory, the number of reducers and the unique job ID
+	 * OUTPUT: an array that is a mapping from an integer to a node number, with
+	 * 			one mapping for each Reduce task
+	 * 
+	 * This method creates a min-priority-queue with comparisons done based on
+	 * the amount of load on each TaskTracker. The mapping is then created by
+	 * repeatedly picking the min-element from the priority queue. This way, we
+	 * choose those TaskTrackers to be the reducers that have the least load on them.
+	 * 
+	 * It is very similar to the scheduling done on the Map phase, except now we 
+	 * don't care about what TaskTrackers have what partitions of data on them.
+	 */
 	static int[] reducerScheduler(String inputDir, int numReducers, int jobID) {
 		
 		int[] reducerToNode = new int[numReducers];
@@ -727,9 +929,19 @@ public class JobTracker implements Runnable {
 		return reducerToNode;
 	}
 	
+	/*
+	 * METHOD: extractJAR
+	 * INPUT: job ID, to construct the name of the folder to be extracted in
+	 * OUTPUT: void
+	 * 
+	 * This method reads and extracts the JAR file into a specially named folder.
+	 * The JAR file consists of the Map and Reduce classes.
+	 */
 	void extractJAR(int jobId) {
 		int bufferSize = 0;
 		String destDir = "./root";
+		
+		// the folder where the JAR file will be extracted
 		String jarFolder = destDir + File.separator + "mapred" + jobId;
 		
 		File destDirF = new File(jarFolder);
@@ -765,6 +977,7 @@ public class JobTracker implements Runnable {
 		
 		int count;
 		
+		// reads the JAR file and writes it into the "jarFolder"
 		try {
 			while ((count = is.read(bytes)) > 0) {
 				bos.write(bytes, 0, count);
@@ -777,6 +990,7 @@ public class JobTracker implements Runnable {
 			e.printStackTrace();
 		}
 		
+		// use JarFile class to handle extraction of the JAR file
 		JarFile jar = null;
 		try {
 			jar = new JarFile(jarFolder + File.separator + "mapred" + jobId + ".jar");
@@ -786,12 +1000,15 @@ public class JobTracker implements Runnable {
 		Enumeration enumEntries = jar.entries();
 		
 		int numFilesExtracted = 0;
+		
+		// iterate through the files in the JAR file, and extract them
 		try {
 			while (enumEntries.hasMoreElements()) {
 				JarEntry file = (JarEntry) enumEntries.nextElement();
 				File fExtractor = new File(jarFolder + File.separator + file.getName());
 				System.out.println(fExtractor.getName());
 				
+				// ignore certain files
 				if (fExtractor.getName().equals("META_INF") || 
 						fExtractor.getName().equals("MANIFEST.MF")) {
 					continue;
@@ -805,6 +1022,7 @@ public class JobTracker implements Runnable {
 				InputStream isExtractor = jar.getInputStream(file);
 				FileOutputStream fosExtractor = new FileOutputStream(fExtractor);
 				
+				// write the file to the "jarFolder"
 				System.out.println(isExtractor.available());
 				while (isExtractor.available() > 0) {
 					fosExtractor.write(isExtractor.read());

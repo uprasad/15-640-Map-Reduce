@@ -15,9 +15,9 @@ public class TaskDetails implements Serializable{
 	 * 5 - Failed twice, Aborted
 	 */
 	private int status;
-	private int partition;
-	private int nodeNum;
-	private double load;
+	private int partition; // partition number of the input file
+	private int nodeNum; // unique node number associated with the TaskTracker
+	private double load; // the amount of input that is being processed on this machine in total
 	
 	int attempt = 0;
 	

@@ -26,7 +26,10 @@ public class JobTracker implements Runnable {
 	//FileSystem for DFS
 	static FileSystem fileSystem = null;
 	
-	// Table of jobs indexed by jobId
+	/* Table of jobs indexed by jobId
+	 * 1. hashed by jobId
+	 * 2. Job object contains details of Map & Reduce tasks of particular Job
+	 */
 	static Hashtable<Integer, Job> jobTable = new Hashtable<Integer, Job>();
 	
 	/*

@@ -1,0 +1,23 @@
+kgabbita	Krishna Aditya Gabbita
+udbhavp		Udbhav Prasad
+
+15-640 Fall 2014
+Lab 3
+
+1. untar the archive lab3_kgabbita-udbhavp.tar.gz
+
+2. use "make all" for compiling the java classes
+
+3. run "java JobTracker <portNum>" on the machine assigned as the JobTracker
+   and note the IP address of the machine before execution
+
+4. run "java MapReduce <JobTracker IP> <JobTracker port>" on user window,
+   for the client program
+
+5. run "java TaskTracker <JobTracker IP> <JobTracker port>" on every node 
+   (TaskTracker) for inclusion in the cluster
+
+Note: <JobTracker port> is the same as <portNum> used for JobTracker
+
+Follow the User menu prompts for MapReduce client program, and refer to
+the documentation

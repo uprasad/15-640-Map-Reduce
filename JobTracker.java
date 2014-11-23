@@ -401,6 +401,7 @@ public class JobTracker implements Runnable {
 			if(valid) {
 				try {
 					oos.writeObject("AckDir");
+					oos.writeObject(jobId);
 				} catch(Exception e) {
 					e.printStackTrace();
 				}

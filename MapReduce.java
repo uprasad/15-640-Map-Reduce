@@ -454,6 +454,7 @@ public class MapReduce {
 			} else if (ack.equals("OutDuplicate")) {
 				System.out.println(outputDir + " already exists in the DFS. Try another name!");
 			} else if (ack.equals("AckDir")) {
+				Integer jobId = (Integer)ois.readObject();
 				
 				System.out.println("Name of .jar file with compiled .class files of mapper and reducer");
 				String mapredJar = in.nextLine();
@@ -486,6 +487,8 @@ public class MapReduce {
 				    fis.close();
 				    bis.close();
 				}
+				
+				System.out.println("Job successfully submitted with jobID: " + jobId);
 			}
 			
 		} catch (Exception e) {
